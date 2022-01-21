@@ -5,6 +5,10 @@ Requirements:
 * Download and install the [`asl` compiler](http://john.ccac.rwth-aachen.de:8000/as/)
 * Install `mame`
 
+### snake/
+
+An implementation of Snake for the Odyssey 2.
+
 ### lowercase/
 
 Lowercase kernel demo. Renders one row of lowercase and mixed uppercase text. Not perfect; relies
