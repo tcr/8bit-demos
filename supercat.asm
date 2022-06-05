@@ -1,41 +1,31 @@
     include "bitfuncs.inc"
 
-; Unused/unknown
-zp_00 equ $00
-zp_01 equ $01
-zp_02 equ $02
-zp_03 equ $03
-zp_04 equ $04
+; NES registers
 
-zp_irq_jmp equ $05
-zp_irq_lo equ $06
-zp_irq_hi equ $07
-zp_temp_a equ $08
-zp_09 equ $09
-zp_temp_x equ $0a
-zp_0b equ $0b
-zp_0c equ $0c
-zp_frame_index equ $0d
-zp_0e equ $0e
-zp_0f equ $0f
-
-zp_joypad_a equ $10
-zp_joypad_b equ $11
-
-PpuControl_2000 equ $2000
+PPUCTRL equ $2000
+PPUCTRL_NAMETABLE2000 equ %0
+PPUCTRL_NAMETABLE2400 equ %1
+PPUCTRL_NAMETABLE2800 equ %10
+PPUCTRL_NAMETABLE2C00 equ %11
+PPUCTRL_INCREMENTMODE equ %100
+PPUCTRL_SPRITEPATTERN equ %1000
+PPUCTRL_BACKGROUNDPATTERN equ %10000
+PPUCTRL_SPRITE16PXMODE equ %100000
+PPUCTRL_WRITEEXT equ %1000000
+PPUCTRL_VBLANKNMI equ %10000000
 
 PPUMASK equ $2001
 PPUMASK_GREYSCALE equ %1
-PPUMASK_SHOWBG equ %1000
-PPUMASK_SHOWSP equ %10000
+PPUMASK_BACKGROUNDENABLE equ %1000
+PPUMASK_SPRITEENABLE equ %10000
 PPUMASK_EMPHRED equ %100000
 PPUMASK_EMPHGREEN equ %1000000
 PPUMASK_EMPHBLUE equ %10000000
 
-PpuStatus_2002 equ $2002
-PpuScroll_2005 equ $2005
-PpuAddr_2006 equ $2006
-PpuData_2007 equ $2007
+PPUSTATUS equ $2002
+PPUSCROLL equ $2005
+PPUADDR equ $2006
+PPUDATA equ $2007
 OAMDMA equ $4014
 
 APUSTATUS equ $4015
@@ -52,7 +42,23 @@ DMCADDR equ $4012
 DMCLEN equ $4013
 
 JOYPADLATCH equ $4016
-JOYPADREAD equ $4017
+JOYPADLATCH_FILLCONTROLLER equ %1
+JOYPADP0READ equ $4016
+JOYPADP1READ equ $4017
+BUTTON_A      = 1 << 7
+BUTTON_B      = 1 << 6
+BUTTON_SELECT = 1 << 5
+BUTTON_START  = 1 << 4
+BUTTON_UP     = 1 << 3
+BUTTON_DOWN   = 1 << 2
+BUTTON_LEFT   = 1 << 1
+BUTTON_RIGHT  = 1 << 0
+
+VRAM_NAMETABLE0 equ $2000
+VRAM_PALETTETABLE equ $3F00
+
+
+; Macros
 
 SETMEM_DMCADDRESS macro TARGETADDR
         if (TARGETADDR # 64) <> 0
@@ -77,11 +83,38 @@ JUMP_SLIDE macro CYCLES
         bit $EA
     endm
 
+SLEEP_ROUTINE_42 macro
+        jsr sleep_36_cycles
+    endm
+
 
 
 ; Game constants
 
 DMC_SAMPLE_ADDR = $ffc0
+
+; Unused/unknown
+zp_00 equ $00
+zp_01 equ $01
+zp_02 equ $02
+zp_03 equ $03
+zp_04 equ $04
+
+zp_irq_jmp equ $05
+zp_irq_lo equ $06
+zp_irq_hi equ $07
+zp_temp_a equ $08
+zp_09 equ $09
+zp_temp_x equ $0a
+zp_0b equ $0b
+zp_0c equ $0c
+zp_direction_index equ $0d
+zp_0e equ $0e
+zp_0f equ $0f
+
+zp_joypad_p0 equ $10
+zp_joypad_p1 equ $11
+
 
 
 ; PRG start
@@ -92,27 +125,27 @@ reset:
         ; Clear all the flags
         sei
         lda #0
-        sta PpuControl_2000
+        sta PPUCTRL
         sta PPUMASK
         sta APUSTATUS
         sta DMCFREQ
         lda #$40
-        sta JOYPADREAD
+        sta JOYPADP1READ
         cld
         ldx #$ff
         txs
 
         ; Wait for PPU
-        ldx #%00000011
+        ldx #3
     -:
-        bit PpuStatus_2002
+        bit PPUSTATUS
         bpl -
         dex
         bne -
 
         ; Clear out console RAM
-        lda #$00
-        ldx #$00
+        lda #0
+        ldx #0
     -:
         sta $0000,x
         sta $0100,x
@@ -129,35 +162,35 @@ reset:
         lda #$07
         sta OAMDMA
 
-        lda #$2A
-        sta PpuControl_2000
-        lda #$20
-        sta PpuAddr_2006
-        lda #$00
-        sta PpuAddr_2006
+        lda #PPUCTRL_NAMETABLE2800 | PPUCTRL_SPRITEPATTERN | PPUCTRL_SPRITE16PXMODE
+        sta PPUCTRL
+        lda #hi(VRAM_NAMETABLE0)
+        sta PPUADDR
+        lda #lo(VRAM_NAMETABLE0)
+        sta PPUADDR
 
         lda #$00
         ldx #$00
         ldy #$08
     -:
-        sta PpuData_2007
-        stx PpuData_2007
-        sta PpuData_2007
-        stx PpuData_2007
-        stx PpuData_2007
-        stx PpuData_2007
-        stx PpuData_2007
-        sta PpuData_2007
+        sta PPUDATA
+        stx PPUDATA
+        sta PPUDATA
+        stx PPUDATA
+        stx PPUDATA
+        stx PPUDATA
+        stx PPUDATA
+        sta PPUDATA
         inx
         bne -
 
-        lda #$20
-        sta PpuAddr_2006
-        lda #$00
-        sta PpuAddr_2006
+        lda #hi(VRAM_NAMETABLE0)
+        sta PPUADDR
+        lda #lo(VRAM_NAMETABLE0)
+        sta PPUADDR
         lda #$FF
-        sta PpuData_2007
-        sta PpuData_2007
+        sta PPUDATA
+        sta PPUDATA
 
         jmp frame_loop
 
@@ -174,11 +207,12 @@ irq_row_dark:
         stx zp_temp_x
 
         ; Change PPUMASK twice in quick succession to see a visible artifact.
-        lda #PPUMASK_GREYSCALE | PPUMASK_SHOWSP
+        lda #PPUMASK_GREYSCALE | PPUMASK_SPRITEENABLE
         sta PPUMASK
-        lda #PPUMASK_EMPHRED | PPUMASK_EMPHGREEN | PPUMASK_SHOWSP
+        lda #PPUMASK_EMPHRED | PPUMASK_EMPHGREEN | PPUMASK_SPRITEENABLE
         sta PPUMASK
 
+        ; Start DMC sample fetch.
         lda #APUSTATUS_ENABLE_DMC
         sta APUSTATUS
 
@@ -211,6 +245,7 @@ irq_row_light:
         ; Now preserve X register as well.
         stx zp_temp_x
 
+        ; Start DMC sample fetch.
         lda #APUSTATUS_ENABLE_DMC
         sta APUSTATUS
 
@@ -225,12 +260,12 @@ irq_row_light:
         nop
         nop
 
-        lda #PPUMASK_GREYSCALE | PPUMASK_SHOWSP
+        lda #PPUMASK_GREYSCALE | PPUMASK_SPRITEENABLE
         sta PPUMASK
-        lda #PPUMASK_EMPHGREEN | PPUMASK_SHOWSP
+        lda #PPUMASK_EMPHGREEN | PPUMASK_SPRITEENABLE
         sta PPUMASK
 
-        jsr sleep_36_cycles
+        SLEEP_ROUTINE_42
 
         ; Restore X register.
         ldx zp_temp_x
@@ -261,22 +296,24 @@ table_frame_offset:
 
 ; ----------------
 
-routine_8156:
+routine_frame_blank_start:
         sta zp_temp_a
         stx zp_temp_x
 
-        ldx zp_frame_index
+        ; Update DMC with lookup0.
+        ldx zp_direction_index
         lda table_frequencies_0,x
         sta DMCFREQ
 
-        lda #PPUMASK_GREYSCALE | PPUMASK_SHOWSP
+        lda #PPUMASK_GREYSCALE | PPUMASK_SPRITEENABLE
         sta PPUMASK
         
+        ; Start DMC sample fetch.
         lda #APUSTATUS_ENABLE_DMC
         sta APUSTATUS
         
         ; Advance IRQ trampoline
-        lda #lo(routine_irq_8175)
+        lda #lo(routine_irq_frame_blank_split_1)
         sta zp_irq_lo
         
         ldx zp_temp_x
@@ -286,18 +323,20 @@ routine_8156:
 
 ; ----------------
 
-routine_8175:
+routine_frame_blank_split_1:
         sta zp_temp_a
         stx zp_temp_x
 
-        ldx zp_frame_index
-        lda table_frequencies_1,X
+        ; Update DMC with lookup1.
+        ldx zp_direction_index
+        lda table_frequencies_1,x
         sta DMCFREQ
+        ; Start DMC sample fetch.
         lda #APUSTATUS_ENABLE_DMC
         sta APUSTATUS
 
         ; Advance IRQ trampoline
-        lda #lo(routine_irq_818f)
+        lda #lo(routine_irq_frame_blank_split_2)
         sta zp_irq_lo
 
         ldx zp_temp_x
@@ -308,13 +347,15 @@ routine_8175:
 
 ; ----------------
 
-routine_818F:
+routine_frame_blank_split_2:
         sta zp_temp_a
         stx zp_temp_x
 
-        ldx zp_frame_index
-        lda table_frequencies_2,X
+        ; Update DMC with lookup2.
+        ldx zp_direction_index
+        lda table_frequencies_2,x
         sta DMCFREQ
+        ; Start DMC sample fetch.
         lda #APUSTATUS_ENABLE_DMC
         sta APUSTATUS
 
@@ -339,11 +380,12 @@ routine_frame_end:
         sta zp_temp_a
         stx zp_temp_x
 
-        ldx zp_frame_index
+        ; Update DMC with lookup3.
+        ldx zp_direction_index
         lda table_frequencies_3,x
         sta DMCFREQ
 
-        lda #PPUMASK_EMPHBLUE | PPUMASK_EMPHGREEN | PPUMASK_SHOWSP
+        lda #PPUMASK_EMPHBLUE | PPUMASK_EMPHGREEN | PPUMASK_SPRITEENABLE
         sta PPUMASK
         
         ; Useless load (???)
@@ -355,31 +397,41 @@ routine_frame_end:
 
         jsr sleep_36_cycles
 
+        ; Update DMC with lookup4.
         lda table_frequencies_4,x
         sta DMCFREQ
+        ; Start DMC sample fetch.
         lda #APUSTATUS_ENABLE_DMC
         sta APUSTATUS
 
         ; Calculate frame adjustment based off joypad values.
         lda table_frame_offset,x
         tax
+        ; Do something???
         bpl +
-        lda zp_joypad_a
+
+        ; Start checking joypad for P0.
+        lda zp_joypad_p0
+        ; BUTTON_RIGHT
         ldx #$01
         asl a
         bcs +
+        ; BUTTON_LEFT
         ldx #$00
         asl a
         bcs +
+        ; BUTTON_DOWN
         ldx #$04
         asl a
         bcs +
+        ; BUTTON_UP
         ldx #$05
         asl a
         bcs +
+        ; No directional buttons pressed.
         ldx #$03
     +:
-        stx zp_frame_index
+        stx zp_direction_index
 
         ldx zp_temp_x
         lda zp_temp_a
@@ -388,6 +440,7 @@ routine_frame_end:
 
 ; --------nmi--------
 
+; In this setup, we do nothing with NMI and don't even enable it.
 nmi:
         rti
 
@@ -404,35 +457,45 @@ routine_81F7:
         sta zp_0F
         inc zp_04
         lda #$3F
-        sta PpuAddr_2006
+        sta PPUADDR
         lda #$01
-        sta PpuAddr_2006
+        sta PPUADDR
         lda zp_04
         lda #$01
-        sta PpuData_2007
+        sta PPUDATA
         lda zp_01
         rti
 
 
 ; --------sub start--------
 
+; Also see https://www.nesdev.org/wiki/Controller_reading_code
 routine_read_joypad:
-        lda #$01
+        ; Start controller read.
+        lda #JOYPADLATCH_FILLCONTROLLER
         sta JOYPADLATCH
 
-        lda #$80
-        sta zp_joypad_a
-        sta zp_joypad_b
+        ; $80 is loaded into the result first.
+        ; Once eight bits are shifted in, last bit will be shifted out, terminating the loop.
+        lda #%10000000
+        sta zp_joypad_p0
+        sta zp_joypad_p1
 
+        ; By storing 0 into JOYPAD1, the strobe bit is cleared and the reloading stops.
         lda #$00
         sta JOYPADLATCH
     -:
-        lda JOYPADLATCH
+        ; Read the latch for P0. Move bit D0 -> Carry, then into the top bit of P0.
+        lda JOYPADP0READ
         lsr a
-        ror zp_joypad_a
-        lda JOYPADREAD
+        ror zp_joypad_p0
+
+        ; Read the latch for P1. Move bit D0 -> Carry, then into the top bit of P1.
+        lda JOYPADP1READ
         lsr a
-        ror zp_joypad_b
+        ror zp_joypad_p1
+
+        ; Once we've read all 8 bits (ZP value shifts off top bit), exit the loop.
         bcc -
 
         rts
@@ -455,13 +518,13 @@ frame_loop:
         sta dmc_sample,X
 
         ; Load palette table into palette VRAM.
-        lda #$3F
-        sta PpuAddr_2006
-        ldx #$00
-        stx PpuAddr_2006
+        lda #hi(VRAM_PALETTETABLE)
+        sta PPUADDR
+        ldx #lo(VRAM_PALETTETABLE)
+        stx PPUADDR
     -:
         lda table_palette,X
-        sta PpuData_2007
+        sta PPUDATA
         inx
         cpx #$20
         bcc -
@@ -469,18 +532,18 @@ frame_loop:
         ; The vblank flag is in an unknown state after reset,
         ; so we perforrm two waits for vertical blank to make sure that the
         ; PPU has stabilized.
-        bit PpuStatus_2002
+        bit PPUSTATUS
     -:
-        bit PpuStatus_2002
+        bit PPUSTATUS
         bpl -
 
         ; Setup scroll registers.
         lda #$F8
-        sta PpuScroll_2005
+        sta PPUSCROLL
         lda #$00
-        sta PpuScroll_2005
+        sta PPUSCROLL
 
-        lda #PPUMASK_SHOWBG | PPUMASK_SHOWSP
+        lda #PPUMASK_BACKGROUNDENABLE | PPUMASK_SPRITEENABLE
         sta PPUMASK
 
         ; Unused write (???)
@@ -488,8 +551,8 @@ frame_loop:
         sta zp_00
 
         ; Wait a long time (???)
-        ldx #$0A
-        ldy #$00
+        ldx #10
+        ldy #0
     -:
         dey
         bne -
@@ -516,15 +579,16 @@ frame_loop:
         ; Re-enable interrupts.
         cli
 
-        lda #$29
-        sta PpuControl_2000
+        ; Switch backgrounnd nametable to $2400.
+        lda #PPUCTRL_NAMETABLE2400 | PPUCTRL_SPRITEPATTERN | PPUCTRL_SPRITE16PXMODE
+        sta PPUCTRL
 
         ; Impossible write (???)
         lda dmc_sample
         sta dmc_sample
 
         ; Repeating rough cycle counter on main thread.
-        ldx #$00
+        ldx #0
     .loop_end:
         inc $0100,X
         bne .loop_end
@@ -577,11 +641,11 @@ routine_irq:
         jmp irq_row_dark - 32
         jmp irq_row_light - 34
         jmp irq_row_dark - 35
-        jmp routine_8156
-routine_irq_8175:
-        jmp routine_8175
-routine_irq_818f:
-        jmp routine_818F
+        jmp routine_frame_blank_start
+routine_irq_frame_blank_split_1:
+        jmp routine_frame_blank_split_1
+routine_irq_frame_blank_split_2:
+        jmp routine_frame_blank_split_2
 routine_irq_frame_end:
         jmp routine_frame_end
         rts
