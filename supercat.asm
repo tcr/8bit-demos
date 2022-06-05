@@ -5,9 +5,9 @@ zp_01 equ $01
 zp_02 equ $02
 zp_03 equ $03
 zp_04 equ $04
-zp_05 equ $05
-zp_06 equ $06
-zp_07 equ $07
+zp_irq_jmp equ $05
+zp_irq_lo equ $06
+zp_irq_hi equ $07
 zp_08 equ $08
 zp_09 equ $09
 zp_0a equ $0a
@@ -82,7 +82,7 @@ reset:
         lda #$00
         sta PpuAddr_2006
 
-        lda #$00
+        lda #$04
         ldx #$00
         ldy #$08
     -:
@@ -104,99 +104,92 @@ reset:
         lda #$FF
         sta PpuData_2007
         sta PpuData_2007
+
         jmp routine_8233
 
         
 routine_808A:
         ; jump slide
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
+        rept 18
+            cmp #$C9
+        endm
         bit $EA
-routine_808A_start:
+
+irq_row_dark:
         sta zp_08
         lda #$81
         sta DmcFreq_4010
         stx zp_0A
-        lda #$11
+
+        lda #%00010001
         sta PpuMask_2001
-        lda #$70
+        lda #%01110000
         sta PpuMask_2001
+
         lda #$10
         sta ApuStatus_4015
-        lda zp_06
+
+        ; Advance IRQ one jump cycle
         clc
-        adc #$03
-        sta zp_06
-        jsr routine_835B
+        lda zp_irq_lo
+        adc #3
+        sta zp_irq_lo
+
+        jsr sleep_36_cycles
+
+        ldx zp_0A
+
+        lda #$8E
+        sta DmcFreq_4010
+
+        lda zp_08
+        rti
+
+
+; ----------------
+
+routine_80DC:
+        ; jump slide
+        rept 18
+            cmp #$C9
+        endm
+        bit $EA
+
+irq_row_light:
+        sta zp_08
+
+        lda #$80
+        sta DmcFreq_4010
+
+        stx zp_0A
+
+        lda #$10
+        sta ApuStatus_4015
+
+        ; Advance IRQ one jump cycle
+        clc
+        lda zp_irq_lo
+        adc #3
+        sta zp_irq_lo
+
+        nop
+        nop
+        nop
+        nop
+
+        lda #%00010001
+        sta PpuMask_2001
+        lda #%01010000
+        sta PpuMask_2001
+
+        jsr sleep_36_cycles
+
         ldx zp_0A
         lda #$8E
         sta DmcFreq_4010
         lda zp_08
         rti
 
-; ----------------
-routine_80DC:
-        ; jump slide
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        cmp #$C9
-        bit $EA
-routine_80DC_start:
-        sta zp_08
-        lda #$80
-        sta DmcFreq_4010
-        stx zp_0A
-        lda #$10
-        sta ApuStatus_4015
-        lda zp_06
-        clc
-        adc #$03
-        sta zp_06
-        nop
-        nop
-        nop
-        nop
-        lda #$11
-        sta PpuMask_2001
-        lda #$50
-        sta PpuMask_2001
-        jsr routine_835B
-        ldx zp_0A
-        lda #$8E
-        sta DmcFreq_4010
-        lda zp_08
-        rti
 
 ; --------data block--------
 
@@ -213,6 +206,7 @@ table_frequencies_4:
 table_frequencies_5:
         byt $FF, $00, $01, $02, $FF, $01
 
+
 ; ----------------
 
 routine_8156:
@@ -226,7 +220,7 @@ routine_8156:
         lda #$10
         sta ApuStatus_4015
         lda #$51
-        sta zp_06
+        sta zp_irq_lo
         ldx zp_0A
         lda zp_08
         rti
@@ -243,7 +237,7 @@ routine_8175:
         lda #$10
         sta ApuStatus_4015
         lda #$54
-        sta zp_06
+        sta zp_irq_lo
         ldx zp_0A
         lda zp_08
         rti
@@ -261,7 +255,7 @@ routine_818F:
         sta ApuStatus_4015
         jsr routine_8214
         lda #$57
-        sta zp_06
+        sta zp_irq_lo
         ldx zp_0A
         lda zp_08
         rti
@@ -282,8 +276,8 @@ routine_81AC:
         sta PpuMask_2001
         lda #$86
         lda #$00
-        sta zp_06
-        jsr routine_835B
+        sta zp_irq_lo
+        jsr sleep_36_cycles
         lda table_frequencies_4,x
         sta DmcFreq_4010
         lda #$10
@@ -365,12 +359,13 @@ routine_8214:
 routine_8233:
         ; store "jmp $8300" into ZP
         lda #$4C
-        sta zp_05
+        sta zp_irq_jmp
         lda #lo(routine_8300)
-        sta zp_06
+        sta zp_irq_lo
         lda #hi(routine_8300)
-        sta zp_07
+        sta zp_irq_hi
 
+        ; Load palette colors
         ldx #$00
         lda data_ffc0,X
         sta data_ffc0,X
@@ -379,23 +374,33 @@ routine_8233:
         ldx #$00
         stx PpuAddr_2006
     -:
-        lda data_82BA,X
+        lda table_palette,X
         sta PpuData_2007
         inx
         cpx #$20
         bcc -
+
+        ; The vblank flag is in an unknown state after reset,
+        ; so we perforrm two waits for vertical blank to make sure that the
+        ; PPU has stabilized.
         bit PpuStatus_2002
     -:
         bit PpuStatus_2002
         bpl -
+
+        ; Setup scroll registers.
         lda #$F8
         sta PpuScroll_2005
         lda #$00
         sta PpuScroll_2005
+
         lda #$18
         sta PpuMask_2001
+
         lda #$40
         sta zp_00
+
+        ; Wait a long time (???)
         ldx #$0A
         ldy #$00
     -:
@@ -403,23 +408,32 @@ routine_8233:
         bne -
         dex
         bne -
+
+        ; Useless write (???)
         ldx #$00
         stx zp_09
+
         lda #$FF
         sta DmcAddress_4012
         lda #$00
         sta DmcLength_4013
         lda #$80
         sta DmcFreq_4010
+
         lda #$10
         sta ApuStatus_4015
         sta ApuStatus_4015
         sta ApuStatus_4015
+
+        ; Re-enable interrupts.
         cli
+
         lda #$29
         sta PpuControl_2000
         lda data_ffc0
         sta data_ffc0
+
+        ; Repeating rough cycle counter on main thread.
         ldx #$00
     -:
         inc $0100,X
@@ -431,11 +445,11 @@ routine_8233:
 
 ; --------data block--------
 
-data_82BA:
-        byt $01, $21, $11, $31, $01, $21, $11, $31
-        byt $01, $21, $11, $31, $01, $21, $11, $31
-        byt $01, $21, $11, $31, $01, $21, $11, $31
-        byt $01, $21, $11, $31, $01, $21, $11, $31
+table_palette:
+        byt $22, $21, $11, $31, $22, $21, $11, $31
+        byt $22, $21, $11, $31, $22, $21, $11, $31
+        byt $22, $21, $11, $31, $22, $21, $11, $31
+        byt $22, $21, $11, $31, $22, $21, $11, $31
 
 
 
@@ -444,32 +458,32 @@ data_82BA:
     org $8300
 
 routine_8300:
-        jmp routine_80DC_start - 2
-        jmp routine_80DC_start-($102-$ad)
-        jmp routine_80DC_start-($102-$fe)
-        jmp routine_80DC_start-($102-$aa)
-        jmp routine_80DC_start-($102-$fb)
-        jmp routine_80DC_start-($102-$a8)
-        jmp routine_80DC_start-($102-$f8)
-        jmp routine_80DC_start-($102-$a5)
-        jmp routine_80DC_start-($102-$f6)
-        jmp routine_80DC_start-($102-$a2)
-        jmp routine_80DC_start-($102-$f3)
-        jmp routine_80DC_start-($102-$a0)
-        jmp routine_80DC_start-($102-$f0)
-        jmp routine_80DC_start-($102-$9d)
-        jmp routine_80DC_start-($102-$ee)
-        jmp routine_80DC_start-($102-$9a)
-        jmp routine_80DC_start-($102-$eb)
-        jmp routine_80DC_start-($102-$98)
-        jmp routine_80DC_start-($102-$e8)
-        jmp routine_80DC_start-($102-$95)
-        jmp routine_80DC_start-($102-$e6)
-        jmp routine_80DC_start-($102-$92)
-        jmp routine_80DC_start-($102-$e3)
-        jmp routine_80DC_start-($102-$90)
-        jmp routine_80DC_start-($102-$e0)
-        jmp routine_80DC_start-($102-$8d)
+        jmp irq_row_light - 2
+        jmp irq_row_dark - 3
+        jmp irq_row_light - 4
+        jmp irq_row_dark - 6
+        jmp irq_row_light - 7
+        jmp irq_row_dark - 8
+        jmp irq_row_light - 10
+        jmp irq_row_dark - 11
+        jmp irq_row_light - 12
+        jmp irq_row_dark - 14
+        jmp irq_row_light - 15
+        jmp irq_row_dark - 16
+        jmp irq_row_light - 18
+        jmp irq_row_dark - 19
+        jmp irq_row_light - 20
+        jmp irq_row_dark - 22
+        jmp irq_row_light - 23
+        jmp irq_row_dark - 24
+        jmp irq_row_light - 26
+        jmp irq_row_dark - 27
+        jmp irq_row_light - 28
+        jmp irq_row_dark - 30
+        jmp irq_row_light - 31
+        jmp irq_row_dark - 32
+        jmp irq_row_light - 34
+        jmp irq_row_dark - 35
         jmp routine_8156
         jmp routine_8175
         jmp routine_818F
@@ -478,23 +492,10 @@ routine_8300:
 
 
 ; --------sub start--------
-routine_835B:
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
-        nop
+sleep_36_cycles:
+        rept 16
+            nop
+        endm
         rts
 
 ; ----------------
@@ -517,4 +518,4 @@ data_ffc0:
     ; reset
     byt lo(reset), hi(reset)
     ; irq
-    byt lo(zp_05), hi(zp_05)
+    byt lo(zp_irq_jmp), hi(zp_irq_jmp)
