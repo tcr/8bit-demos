@@ -35,7 +35,20 @@ DMCFREQ equ $4010
 DMCFREQ_IRQ = %10000000
 DMCFREQ_RATE428 = $0
 DMCFREQ_RATE380 = $1
+DMCFREQ_RATE340 = $2
+DMCFREQ_RATE320 = $3
+DMCFREQ_RATE286 = $4
+DMCFREQ_RATE256 = $5
+DMCFREQ_RATE226 = $6
+DMCFREQ_RATE214 = $7
+DMCFREQ_RATE190 = $8
+DMCFREQ_RATE160 = $9
+DMCFREQ_RATE142 = $a
+DMCFREQ_RATE128 = $b
+DMCFREQ_RATE106 = $c
+DMCFREQ_RATE84 = $d
 DMCFREQ_RATE72 = $e
+DMCFREQ_RATE54 = $f
 ; etc...
 
 DMCADDR equ $4012
@@ -108,7 +121,7 @@ zp_09 equ $09
 zp_temp_x equ $0a
 zp_0b equ $0b
 zp_0c equ $0c
-zp_direction_index equ $0d
+zp_frame_index equ $0d
 zp_0e equ $0e
 zp_0f equ $0f
 
@@ -162,13 +175,15 @@ reset:
         lda #$07
         sta OAMDMA
 
+        ; Set PPU control registers.
         lda #PPUCTRL_NAMETABLE2800 | PPUCTRL_SPRITEPATTERN | PPUCTRL_SPRITE16PXMODE
         sta PPUCTRL
+
+        ; Clear out nametable $2000 in a loop.
         lda #hi(VRAM_NAMETABLE0)
         sta PPUADDR
         lda #lo(VRAM_NAMETABLE0)
         sta PPUADDR
-
         lda #$00
         ldx #$00
         ldy #$08
@@ -184,6 +199,7 @@ reset:
         inx
         bne -
 
+        ; Set some specific tiles in nametable $2000.
         lda #hi(VRAM_NAMETABLE0)
         sta PPUADDR
         lda #lo(VRAM_NAMETABLE0)
@@ -222,7 +238,7 @@ irq_row_dark:
         adc #3
         sta zp_irq_lo
 
-        jsr sleep_36_cycles
+        SLEEP_ROUTINE_42
 
         ; Restore X register.
         ldx zp_temp_x
@@ -260,6 +276,7 @@ irq_row_light:
         nop
         nop
 
+        ; Change PPUMASK twice in quick succession to see a visible artifact.
         lda #PPUMASK_GREYSCALE | PPUMASK_SPRITEENABLE
         sta PPUMASK
         lda #PPUMASK_EMPHGREEN | PPUMASK_SPRITEENABLE
@@ -279,19 +296,53 @@ irq_row_light:
 
 ; --------DMC frequencies--------
 
+; Frequencies to use for each direction.
 table_frequencies_0:
-        byt $80, $80, $80, $80, $80, $80
+        byt DMCFREQ_IRQ | DMCFREQ_RATE428
+        byt DMCFREQ_IRQ | DMCFREQ_RATE428
+        byt DMCFREQ_IRQ | DMCFREQ_RATE428
+        byt DMCFREQ_IRQ | DMCFREQ_RATE428
+        byt DMCFREQ_IRQ | DMCFREQ_RATE428
+        byt DMCFREQ_IRQ | DMCFREQ_RATE428
+
 table_frequencies_1:
-        byt $87, $87, $87, $87, $87, $88
+        byt DMCFREQ_IRQ | DMCFREQ_RATE214
+        byt DMCFREQ_IRQ | DMCFREQ_RATE214
+        byt DMCFREQ_IRQ | DMCFREQ_RATE214
+        byt DMCFREQ_IRQ | DMCFREQ_RATE214
+        byt DMCFREQ_IRQ | DMCFREQ_RATE214
+        byt DMCFREQ_IRQ | DMCFREQ_RATE190
+
 table_frequencies_2:
-        byt $8F, $8E, $8F, $8F, $8F, $8E
+        byt DMCFREQ_IRQ | DMCFREQ_RATE54
+        byt DMCFREQ_IRQ | DMCFREQ_RATE72
+        byt DMCFREQ_IRQ | DMCFREQ_RATE54
+        byt DMCFREQ_IRQ | DMCFREQ_RATE54
+        byt DMCFREQ_IRQ | DMCFREQ_RATE54
+        byt DMCFREQ_IRQ | DMCFREQ_RATE72
+
 table_frequencies_3:
-        byt $86, $8D, $86, $86, $87, $89
+        byt DMCFREQ_IRQ | DMCFREQ_RATE226
+        byt DMCFREQ_IRQ | DMCFREQ_RATE84
+        byt DMCFREQ_IRQ | DMCFREQ_RATE226
+        byt DMCFREQ_IRQ | DMCFREQ_RATE226
+        byt DMCFREQ_IRQ | DMCFREQ_RATE214
+        byt DMCFREQ_IRQ | DMCFREQ_RATE160
+        
 table_frequencies_4:
-        byt $8F, $8F, $8F, $8F, $8E, $8F
+        byt DMCFREQ_IRQ | DMCFREQ_RATE54
+        byt DMCFREQ_IRQ | DMCFREQ_RATE54
+        byt DMCFREQ_IRQ | DMCFREQ_RATE54
+        byt DMCFREQ_IRQ | DMCFREQ_RATE54
+        byt DMCFREQ_IRQ | DMCFREQ_RATE72
+        byt DMCFREQ_IRQ | DMCFREQ_RATE54
 
 table_frame_offset:
-        byt $FF, $00, $01, $02, $FF, $01
+        ; Frame loop 0-3, also
+        ; 1: left, 2: right
+        byt $FF, $00, $01, $02
+        ; 4: down, 5: up
+        byt $FF, $01
 
 
 ; ----------------
@@ -301,10 +352,11 @@ routine_frame_blank_start:
         stx zp_temp_x
 
         ; Update DMC with lookup0.
-        ldx zp_direction_index
+        ldx zp_frame_index
         lda table_frequencies_0,x
         sta DMCFREQ
 
+        ; Change PPUMASK to greyscale during the blanking period.
         lda #PPUMASK_GREYSCALE | PPUMASK_SPRITEENABLE
         sta PPUMASK
         
@@ -321,14 +373,12 @@ routine_frame_blank_start:
         rti
 
 
-; ----------------
-
 routine_frame_blank_split_1:
         sta zp_temp_a
         stx zp_temp_x
 
         ; Update DMC with lookup1.
-        ldx zp_direction_index
+        ldx zp_frame_index
         lda table_frequencies_1,x
         sta DMCFREQ
         ; Start DMC sample fetch.
@@ -345,14 +395,12 @@ routine_frame_blank_split_1:
         rti
 
 
-; ----------------
-
 routine_frame_blank_split_2:
         sta zp_temp_a
         stx zp_temp_x
 
         ; Update DMC with lookup2.
-        ldx zp_direction_index
+        ldx zp_frame_index
         lda table_frequencies_2,x
         sta DMCFREQ
         ; Start DMC sample fetch.
@@ -371,20 +419,16 @@ routine_frame_blank_split_2:
         rti
 
 
-
-
-; ----------------
-
-
 routine_frame_end:
         sta zp_temp_a
         stx zp_temp_x
 
         ; Update DMC with lookup3.
-        ldx zp_direction_index
+        ldx zp_frame_index
         lda table_frequencies_3,x
         sta DMCFREQ
 
+        ; Restore PPUMASK to start showing colors after the blanking period.
         lda #PPUMASK_EMPHBLUE | PPUMASK_EMPHGREEN | PPUMASK_SPRITEENABLE
         sta PPUMASK
         
@@ -407,7 +451,7 @@ routine_frame_end:
         ; Calculate frame adjustment based off joypad values.
         lda table_frame_offset,x
         tax
-        ; Do something???
+        ; If we have a positive offset, use it. Otherwise, evaluate joypad.
         bpl +
 
         ; Start checking joypad for P0.
@@ -428,10 +472,11 @@ routine_frame_end:
         ldx #$05
         asl a
         bcs +
-        ; No directional buttons pressed.
+
+        ; No directional buttons pressed, so restart the frame loop at x = 3.
         ldx #$03
     +:
-        stx zp_direction_index
+        stx zp_frame_index
 
         ldx zp_temp_x
         lda zp_temp_a
@@ -563,7 +608,7 @@ frame_loop:
         ldx #$00
         stx zp_09
 
-        ; Setup DMC.
+        ; Setup initial DMC.
         SETMEM_DMCADDRESS DMC_SAMPLE_ADDR
         lda #0
         sta DMCLEN
@@ -575,7 +620,6 @@ frame_loop:
         sta APUSTATUS
         sta APUSTATUS
         sta APUSTATUS
-
         ; Re-enable interrupts.
         cli
 
