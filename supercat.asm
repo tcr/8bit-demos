@@ -20,22 +20,39 @@ zp_10 equ $10
 zp_11 equ $11
 
 PpuControl_2000 equ $2000
-PpuMask_2001 equ $2001
+PPUMASK equ $2001
 PpuStatus_2002 equ $2002
 PpuScroll_2005 equ $2005
 PpuAddr_2006 equ $2006
 PpuData_2007 equ $2007
 SpriteDma_4014 equ $4014
 
-ApuStatus_4015 equ $4015
+APUSTATUS equ $4015
 APUSTATUS_ENABLE_DMC = %10000
 
-DmcFreq_4010 equ $4010
-DmcAddress_4012 equ $4012
-DmcLength_4013 equ $4013
-Ctrl1_4016 equ $4016
-Ctrl2_FrameCtr_4017 equ $4017
+DMCFREQ equ $4010
+DMCFREQ_IRQ = %10000000
+DMCFREQ_RATE428 = $0
+DMCFREQ_RATE380 = $1
+DMCFREQ_RATE72 = $e
+; etc...
 
+DMCADDR equ $4012
+DMCLEN equ $4013
+
+JOYPADLATCH equ $4016
+JOYPADREAD equ $4017
+
+SETMEM_DMCADDRESS macro TARGETADDR
+        if (TARGETADDR # 64) <> 0
+            error "Address must be divisible by 64"
+        endif
+        if ~~(TARGETADDR >= $c000)
+            error "Address must be >= $c000"
+        endif
+        lda #(TARGETADDR - $c000) / 64
+        sta DMCADDR
+    endm
 
 
 JUMP_SLIDE macro CYCLES
@@ -51,20 +68,25 @@ JUMP_SLIDE macro CYCLES
 
 
 
+; Game constants
 
+DMC_SAMPLE_ADDR = $ffc0
+
+
+; PRG start
 
     org $8000
 
 reset:
         ; Clear all the flags
         sei
-        lda #$00
+        lda #0
         sta PpuControl_2000
-        sta PpuMask_2001
-        sta ApuStatus_4015
-        sta DmcFreq_4010
+        sta PPUMASK
+        sta APUSTATUS
+        sta DMCFREQ
         lda #$40
-        sta Ctrl2_FrameCtr_4017
+        sta JOYPADREAD
         cld
         ldx #$ff
         txs
@@ -132,17 +154,18 @@ reset:
         JUMP_SLIDE 40
 irq_row_dark:
         sta zp_08
-        lda #$81
-        sta DmcFreq_4010
+        lda #DMCFREQ_IRQ | DMCFREQ_RATE380
+        sta DMCFREQ
         stx zp_0A
 
+        ; Change PPUMASK twice in quick succession to see a visible artifact.
         lda #%00010001
-        sta PpuMask_2001
+        sta PPUMASK
         lda #%01110000
-        sta PpuMask_2001
+        sta PPUMASK
 
         lda #$10
-        sta ApuStatus_4015
+        sta APUSTATUS
 
         ; Advance IRQ one jump cycle
         lda zp_irq_lo
@@ -154,8 +177,8 @@ irq_row_dark:
 
         ldx zp_0A
 
-        lda #$8E
-        sta DmcFreq_4010
+        lda #DMCFREQ_IRQ | DMCFREQ_RATE72
+        sta DMCFREQ
 
         lda zp_08
         rti
@@ -167,13 +190,13 @@ irq_row_dark:
 irq_row_light:
         sta zp_08
 
-        lda #$80
-        sta DmcFreq_4010
+        lda #DMCFREQ_IRQ | DMCFREQ_RATE428
+        sta DMCFREQ
 
         stx zp_0A
 
         lda #$10
-        sta ApuStatus_4015
+        sta APUSTATUS
 
         ; Advance IRQ one jump cycle
         lda zp_irq_lo
@@ -187,15 +210,15 @@ irq_row_light:
         nop
 
         lda #%00010001
-        sta PpuMask_2001
+        sta PPUMASK
         lda #%01010000
-        sta PpuMask_2001
+        sta PPUMASK
 
         jsr sleep_36_cycles
 
         ldx zp_0A
-        lda #$8E
-        sta DmcFreq_4010
+        lda #DMCFREQ_IRQ | DMCFREQ_RATE72
+        sta DMCFREQ
         lda zp_08
         rti
 
@@ -224,14 +247,15 @@ routine_8156:
         ldx zp_0D
 
         lda table_frequencies_0,x
-        sta DmcFreq_4010
+        sta DMCFREQ
 
         lda #%00010001
-        sta PpuMask_2001
+        sta PPUMASK
         
         lda #APUSTATUS_ENABLE_DMC
-        sta ApuStatus_4015
+        sta APUSTATUS
         
+        ; Advance IRQ trampoline
         lda #lo(routine_8300_8175)
         sta zp_irq_lo
         
@@ -248,14 +272,13 @@ routine_8175:
         stx zp_0A
 
         ldx zp_0D
-
         lda table_frequencies_1,X
-        sta DmcFreq_4010
+        sta DMCFREQ
+        lda #APUSTATUS_ENABLE_DMC
+        sta APUSTATUS
 
-        lda #$10
-        sta ApuStatus_4015
-
-        lda #$54
+        ; Advance IRQ trampoline
+        lda #lo(routine_8300_818f)
         sta zp_irq_lo
 
         ldx zp_0A
@@ -269,14 +292,19 @@ routine_8175:
 routine_818F:
         sta zp_08
         stx zp_0A
+
         ldx zp_0D
         lda table_frequencies_2,X
-        sta DmcFreq_4010
-        lda #$10
-        sta ApuStatus_4015
+        sta DMCFREQ
+        lda #APUSTATUS_ENABLE_DMC
+        sta APUSTATUS
+
         jsr routine_8214
-        lda #$57
+
+        ; Advance IRQ trampoline
+        lda #lo(routine_8300_81ac)
         sta zp_irq_lo
+
         ldx zp_0A
         lda zp_08
         rti
@@ -290,19 +318,27 @@ routine_818F:
 routine_81AC:
         sta zp_08
         stx zp_0A
+
         ldx zp_0D
         lda table_frequencies_3,x
-        sta DmcFreq_4010
+        sta DMCFREQ
+
         lda #$D0
-        sta PpuMask_2001
+        sta PPUMASK
+        
+        ; Useless load (???)
         lda #$86
-        lda #$00
+
+        lda #lo(routine_8300)
         sta zp_irq_lo
+
         jsr sleep_36_cycles
+
         lda table_frequencies_4,x
-        sta DmcFreq_4010
-        lda #$10
-        sta ApuStatus_4015
+        sta DMCFREQ
+        lda #APUSTATUS_ENABLE_DMC
+        sta APUSTATUS
+
         lda table_frequencies_5,x
         tax
         bpl +
@@ -322,6 +358,7 @@ routine_81AC:
         ldx #$03
     +:
         stx zp_0D
+
         ldx zp_0A
         lda zp_08
         rti
@@ -340,16 +377,22 @@ nmi:
 routine_81F7:
         cli
         sta zp_01
+
         lda #$00
         sta zp_0F
         inc zp_04
+
         lda #$3F
         sta PpuAddr_2006
         lda #$01
         sta PpuAddr_2006
+        
+        ; Useless write (???)
         lda zp_04
+
         lda #$01
         sta PpuData_2007
+
         lda zp_01
         rti
 
@@ -358,17 +401,17 @@ routine_81F7:
 
 routine_8214:
         lda #$01
-        sta Ctrl1_4016
+        sta JOYPADLATCH
         lda #$80
         sta zp_10
         sta zp_11
         lda #$00
-        sta Ctrl1_4016
+        sta JOYPADLATCH
     -:
-        lda Ctrl1_4016
+        lda JOYPADLATCH
         lsr a
         ror zp_10
-        lda Ctrl2_FrameCtr_4017
+        lda JOYPADREAD
         lsr a
         ror zp_11
         bcc -
@@ -386,10 +429,12 @@ routine_8233:
         lda #hi(routine_8300)
         sta zp_irq_hi
 
-        ; Load palette colors
+        ; Impossible write to APU sample block (???)
         ldx #$00
-        lda data_ffc0,X
-        sta data_ffc0,X
+        lda dmc_sample,X
+        sta dmc_sample,X
+
+        ; Load palette colors
         lda #$3F
         sta PpuAddr_2006
         ldx #$00
@@ -416,7 +461,7 @@ routine_8233:
         sta PpuScroll_2005
 
         lda #$18
-        sta PpuMask_2001
+        sta PPUMASK
 
         lda #$40
         sta zp_00
@@ -433,28 +478,28 @@ routine_8233:
         ; Useless write (???)
         ldx #$00
         stx zp_09
-
-        lda #$FF
-        sta DmcAddress_4012
-        lda #$00
-        sta DmcLength_4013
-        lda #$80
-        sta DmcFreq_4010
+        SETMEM_DMCADDRESS DMC_SAMPLE_ADDR
+        lda #0
+        sta DMCLEN
+        lda #DMCFREQ_IRQ | DMCFREQ_RATE428
+        sta DMCFREQ
 
         ; Due to a hardware quirk, we need to write the sample length three times in a row
         ; so as not to trigger an immediate IRQ. See https://www.nesdev.org/wiki/APU_DMC
         lda #APUSTATUS_ENABLE_DMC
-        sta ApuStatus_4015
-        sta ApuStatus_4015
-        sta ApuStatus_4015
+        sta APUSTATUS
+        sta APUSTATUS
+        sta APUSTATUS
 
         ; Re-enable interrupts.
         cli
 
         lda #$29
         sta PpuControl_2000
-        lda data_ffc0
-        sta data_ffc0
+
+        ; Impossible write (???)
+        lda dmc_sample
+        sta dmc_sample
 
         ; Repeating rough cycle counter on main thread.
         ldx #$00
@@ -512,36 +557,40 @@ routine_8300:
         jmp routine_8156
 routine_8300_8175:
         jmp routine_8175
+routine_8300_818f:
         jmp routine_818F
+routine_8300_81ac:
         jmp routine_81AC
         rts
 
 
 ; --------sub start--------
+
 sleep_36_cycles:
         rept 16
             nop
         endm
         rts
 
-; ----------------
 
-    org $FFC0
+; --------APU sample block--------
 
-; --------mystery data block--------
-data_ffc0:
+    org DMC_SAMPLE_ADDR
+
+dmc_sample:
         byt $00, $01, $02, $03, $04, $05, $06, $07
         byt $08, $09, $0A, $0B, $0C, $0D, $0E, $0F
         byt $FF
 
 
-; Reset vectors
+; --------Reset Vectors--------
 
     org $FFFA
 
-    ; nmi
-    byt lo(nmi), hi(nmi)
-    ; reset
-    byt lo(reset), hi(reset)
-    ; irq
-    byt lo(zp_irq_jmp), hi(zp_irq_jmp)
+vectors:
+        ; nmi
+        byt lo(nmi), hi(nmi)
+        ; reset
+        byt lo(reset), hi(reset)
+        ; irq
+        byt lo(zp_irq_jmp), hi(zp_irq_jmp)
