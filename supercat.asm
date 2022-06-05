@@ -26,7 +26,10 @@ PpuScroll_2005 equ $2005
 PpuAddr_2006 equ $2006
 PpuData_2007 equ $2007
 SpriteDma_4014 equ $4014
+
 ApuStatus_4015 equ $4015
+APUSTATUS_ENABLE_DMC = %10000
+
 DmcFreq_4010 equ $4010
 DmcAddress_4012 equ $4012
 DmcLength_4013 equ $4013
@@ -98,7 +101,7 @@ reset:
         lda #$00
         sta PpuAddr_2006
 
-        lda #$04
+        lda #$00
         ldx #$00
         ldy #$08
     -:
@@ -126,7 +129,7 @@ reset:
         
 ; ----------------
 
-        JUMP_SLIDE 38
+        JUMP_SLIDE 40
 irq_row_dark:
         sta zp_08
         lda #$81
@@ -142,8 +145,8 @@ irq_row_dark:
         sta ApuStatus_4015
 
         ; Advance IRQ one jump cycle
-        clc
         lda zp_irq_lo
+        clc
         adc #3
         sta zp_irq_lo
 
@@ -160,7 +163,7 @@ irq_row_dark:
 
 ; ----------------
 
-        JUMP_SLIDE 38
+        JUMP_SLIDE 40
 irq_row_light:
         sta zp_08
 
@@ -173,8 +176,8 @@ irq_row_light:
         sta ApuStatus_4015
 
         ; Advance IRQ one jump cycle
-        clc
         lda zp_irq_lo
+        clc
         adc #3
         sta zp_irq_lo
 
@@ -223,10 +226,10 @@ routine_8156:
         lda table_frequencies_0,x
         sta DmcFreq_4010
 
-        lda #$11
+        lda #%00010001
         sta PpuMask_2001
         
-        lda #$10
+        lda #APUSTATUS_ENABLE_DMC
         sta ApuStatus_4015
         
         lda #lo(routine_8300_8175)
@@ -438,7 +441,9 @@ routine_8233:
         lda #$80
         sta DmcFreq_4010
 
-        lda #$10
+        ; Due to a hardware quirk, we need to write the sample length three times in a row
+        ; so as not to trigger an immediate IRQ. See https://www.nesdev.org/wiki/APU_DMC
+        lda #APUSTATUS_ENABLE_DMC
         sta ApuStatus_4015
         sta ApuStatus_4015
         sta ApuStatus_4015
@@ -473,6 +478,8 @@ table_palette:
 
 ; ----------------
 
+    ; must be aligned to a page boundary
+    ; IRQ trampoline only rewrites the lower byte here
     org $8300
 
 routine_8300:
