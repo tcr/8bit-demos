@@ -213,16 +213,22 @@ routine_8156:
         sta zp_08
         stx zp_0A
         ldx zp_0D
+
         lda table_frequencies_0,x
         sta DmcFreq_4010
+
         lda #$11
         sta PpuMask_2001
+        
         lda #$10
         sta ApuStatus_4015
-        lda #$51
+        
+        lda #lo(routine_8300_8175)
         sta zp_irq_lo
+        
         ldx zp_0A
         lda zp_08
+
         rti
 
 
@@ -485,6 +491,7 @@ routine_8300:
         jmp irq_row_light - 34
         jmp irq_row_dark - 35
         jmp routine_8156
+routine_8300_8175:
         jmp routine_8175
         jmp routine_818F
         jmp routine_81AC
