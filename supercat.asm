@@ -34,6 +34,22 @@ Ctrl1_4016 equ $4016
 Ctrl2_FrameCtr_4017 equ $4017
 
 
+
+JUMP_SLIDE macro CYCLES
+        if CYCLES # 2 == 1
+            error "Need a cycle count divisible by 2."
+        endif
+        ; jump slide
+        rept (CYCLES / 2) - 2
+            cmp #$C9
+        endm
+        bit $EA
+    endm
+
+
+
+
+
     org $8000
 
 reset:
@@ -108,13 +124,9 @@ reset:
         jmp routine_8233
 
         
-routine_808A:
-        ; jump slide
-        rept 18
-            cmp #$C9
-        endm
-        bit $EA
+; ----------------
 
+        JUMP_SLIDE 38
 irq_row_dark:
         sta zp_08
         lda #$81
@@ -148,13 +160,7 @@ irq_row_dark:
 
 ; ----------------
 
-routine_80DC:
-        ; jump slide
-        rept 18
-            cmp #$C9
-        endm
-        bit $EA
-
+        JUMP_SLIDE 38
 irq_row_light:
         sta zp_08
 
@@ -237,15 +243,21 @@ routine_8156:
 routine_8175:
         sta zp_08
         stx zp_0A
+
         ldx zp_0D
+
         lda table_frequencies_1,X
         sta DmcFreq_4010
+
         lda #$10
         sta ApuStatus_4015
+
         lda #$54
         sta zp_irq_lo
+
         ldx zp_0A
         lda zp_08
+
         rti
 
 
