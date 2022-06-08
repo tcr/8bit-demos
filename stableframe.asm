@@ -96,8 +96,19 @@ JUMP_SLIDE macro CYCLES
         bit $EA
     endm
 
-SLEEP_ROUTINE_42 macro
-        jsr sleep_36_cycles
+SLEEP macro ARGCYCLES
+        if ~~((ARGCYCLES # 1) == 0)
+            error "Cycle must be even"
+        endif
+        if ARGCYCLES < 10
+            rept ARGCYCLES / 2
+                nop
+            endm
+        elseif ARGCYCLES > 138
+            error "Cycles count cannot exceed 138"
+        else
+            jsr sleep_routine - ((ARGCYCLES - 10) / 2)
+        endif
     endm
 
 
@@ -128,6 +139,8 @@ zp_0f equ $0f
 zp_joypad_p0 equ $10
 zp_joypad_p1 equ $11
 
+
+PPUMASK_COMMON = PPUMASK_BACKGROUNDENABLE | PPUMASK_SPRITEENABLE
 
 
 ; PRG start
@@ -171,7 +184,8 @@ reset:
         inx
         bne -
 
-        ; Write out all zeroes to OAM.
+        ; Trigger OAM DMA. This has the side effect of aligning the APU and CPU on an
+        ; even cycle. Though this feature is not used in this demo.
         lda #$07
         sta OAMDMA
 
@@ -204,7 +218,15 @@ reset:
         sta PPUADDR
         lda #lo(VRAM_NAMETABLE0)
         sta PPUADDR
-        lda #$FF
+        lda #$4
+        sta PPUDATA
+        sta PPUDATA
+
+        lda #hi(VRAM_NAMETABLE0+34)
+        sta PPUADDR
+        lda #lo(VRAM_NAMETABLE0+34)
+        sta PPUADDR
+        lda #$4
         sta PPUDATA
         sta PPUDATA
 
@@ -213,38 +235,102 @@ reset:
         
 ; ----------------
 
+; When called, we expect the DMC rate to be set to 72.
+; We change the DMC rate for the second clock, and at least 72 cycles for the first clock to finish.
         JUMP_SLIDE 40
-irq_row_dark:
+irq_row_medium:
+        ; [+3] Preserve A register.
         sta zp_temp_a
-        ; Update DMC with P1 rate.
-        lda #DMCFREQ_IRQ | DMCFREQ_RATE380
+        ; [+6] Update DMC with P1 rate.
+        lda #DMCFREQ_IRQ | DMCFREQ_RATE72
         sta DMCFREQ
-        ; Now preserve X register as well.
+        ; [+3] Now preserve X register as well.
         stx zp_temp_x
+        ; [=12]
 
-        ; Change PPUMASK twice in quick succession to see a visible artifact.
-        lda #PPUMASK_GREYSCALE | PPUMASK_SPRITEENABLE
-        sta PPUMASK
-        lda #PPUMASK_EMPHRED | PPUMASK_EMPHGREEN | PPUMASK_SPRITEENABLE
-        sta PPUMASK
+        SLEEP 8
 
-        ; Start DMC sample fetch.
+        ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
+        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
+        sta PPUMASK
+        lda #PPUMASK_COMMON | PPUMASK_EMPHRED
+        sta PPUMASK
+        ; [=22]
+
+        ; [+5] Acknowledge IRQ.
         lda #APUSTATUS_ENABLE_DMC
         sta APUSTATUS
+        ; [=27]
 
-        ; Advance IRQ one jump cycle.
+        ; [+10] Advance IRQ one jump cycle.
         lda zp_irq_lo
         clc
         adc #3
         sta zp_irq_lo
+        ; [=37]
 
-        SLEEP_ROUTINE_42
+        ; [+20] Sleep.
+        SLEEP 20
+        ; [=57]
 
-        ; Restore X register.
+        ; [+ 3] Restore X register.
         ldx zp_temp_x
-        ; Update DMC with P2 rate.
+        ; [=82]
+        
+        ; [+5] Update DMC with P2 rate.
+        lda #DMCFREQ_IRQ | DMCFREQ_RATE54
+        sta DMCFREQ
+        ; [=87]
+
+        lda zp_temp_a
+        rti
+
+; When called, we expect the DMC rate to be set to 72.
+; We change the DMC rate for the second clock, and at least 72 cycles for the first clock to finish.
+        JUMP_SLIDE 10
+irq_row_dark:
+        ; [+3] Preserve A register.
+        sta zp_temp_a
+        ; [+6] Update DMC with P1 rate.
         lda #DMCFREQ_IRQ | DMCFREQ_RATE72
         sta DMCFREQ
+        ; [+3] Now preserve X register as well.
+        stx zp_temp_x
+        ; [=12]
+
+        SLEEP 8
+
+        ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
+        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
+        sta PPUMASK
+        lda #PPUMASK_COMMON | PPUMASK_EMPHRED | PPUMASK_EMPHGREEN
+        sta PPUMASK
+        ; [=22]
+
+        ; [+5] Acknowledge IRQ.
+        lda #APUSTATUS_ENABLE_DMC
+        sta APUSTATUS
+        ; [=27]
+
+        ; [+10] Advance IRQ one jump cycle.
+        lda zp_irq_lo
+        clc
+        adc #3
+        sta zp_irq_lo
+        ; [=37]
+
+        ; [+20] Sleep.
+        SLEEP 20
+        ; [=57]
+
+        ; [+ 3] Restore X register.
+        ldx zp_temp_x
+        ; [=82]
+        
+        ; [+5] Update DMC with P2 rate.
+        lda #DMCFREQ_IRQ | DMCFREQ_RATE54
+        sta DMCFREQ
+        ; [=87]
 
         lda zp_temp_a
         rti
@@ -252,43 +338,50 @@ irq_row_dark:
 
 ; ----------------
 
-        JUMP_SLIDE 40
+; When called, we expect the DMC rate to be set to 54.
+; We change the DMC rate for the second clock, and at least 54 cycles for the first clock to finish.
+        JUMP_SLIDE 10
 irq_row_light:
+        ; [+ 3] Preserve A register.
         sta zp_temp_a
-        ; Update DMC with P1 rate.
-        lda #DMCFREQ_IRQ | DMCFREQ_RATE428
+        ; [+ 6] Update DMC with P1 rate.
+        lda #DMCFREQ_IRQ | DMCFREQ_RATE84
         sta DMCFREQ
-        ; Now preserve X register as well.
+        ; [+ 3] Now preserve X register as well.
         stx zp_temp_x
+        ; [=12]
 
-        ; Start DMC sample fetch.
+        ; [+ 5] Acknowledge IRQ.
         lda #APUSTATUS_ENABLE_DMC
         sta APUSTATUS
+        ; [=17]
 
-        ; Advance IRQ one jump cycle.
+        ; [+10] Advance IRQ one jump cycle.
         lda zp_irq_lo
         clc
         adc #3
         sta zp_irq_lo
+        ; [=27]
 
-        nop
-        nop
-        nop
-        nop
-
-        ; Change PPUMASK twice in quick succession to see a visible artifact.
-        lda #PPUMASK_GREYSCALE | PPUMASK_SPRITEENABLE
+        ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
+        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
         sta PPUMASK
-        lda #PPUMASK_EMPHGREEN | PPUMASK_SPRITEENABLE
+        lda #PPUMASK_COMMON | PPUMASK_EMPHGREEN
         sta PPUMASK
+        ; [=37]
 
-        SLEEP_ROUTINE_42
+        ; [+20] Sleep.
+        SLEEP 20
+        ; [=57]
 
-        ; Restore X register.
+        ; [+ 3] Restore X register.
         ldx zp_temp_x
-        ; Update DMC with P2 rate.
-        lda #DMCFREQ_IRQ | DMCFREQ_RATE72
+        ; [=60]
+
+        ; [+ 5] Update DMC with P2 rate.
+        lda #DMCFREQ_IRQ | DMCFREQ_RATE54
         sta DMCFREQ
+        ; [=65]
 
         lda zp_temp_a
         rti
@@ -296,44 +389,55 @@ irq_row_light:
 
 ; --------DMC frequencies--------
 
-; Frequencies to use for each direction.
+; Frequencies to use for each frame index.
+
+; * 8
 table_frequencies_0:
         byt DMCFREQ_IRQ | DMCFREQ_RATE428
-        byt DMCFREQ_IRQ | DMCFREQ_RATE428
-        byt DMCFREQ_IRQ | DMCFREQ_RATE428
-        byt DMCFREQ_IRQ | DMCFREQ_RATE428
+        byt DMCFREQ_IRQ | DMCFREQ_RATE380
         byt DMCFREQ_IRQ | DMCFREQ_RATE428
         byt DMCFREQ_IRQ | DMCFREQ_RATE428
 
+        byt DMCFREQ_IRQ | DMCFREQ_RATE428
+        byt DMCFREQ_IRQ | DMCFREQ_RATE428
+
+; * 8
 table_frequencies_1:
         byt DMCFREQ_IRQ | DMCFREQ_RATE214
+        byt DMCFREQ_IRQ | DMCFREQ_RATE226
         byt DMCFREQ_IRQ | DMCFREQ_RATE214
         byt DMCFREQ_IRQ | DMCFREQ_RATE214
-        byt DMCFREQ_IRQ | DMCFREQ_RATE214
+
         byt DMCFREQ_IRQ | DMCFREQ_RATE214
         byt DMCFREQ_IRQ | DMCFREQ_RATE190
 
+; * 8
 table_frequencies_2:
         byt DMCFREQ_IRQ | DMCFREQ_RATE54
-        byt DMCFREQ_IRQ | DMCFREQ_RATE72
-        byt DMCFREQ_IRQ | DMCFREQ_RATE54
-        byt DMCFREQ_IRQ | DMCFREQ_RATE54
+        byt DMCFREQ_IRQ | DMCFREQ_RATE106
         byt DMCFREQ_IRQ | DMCFREQ_RATE54
         byt DMCFREQ_IRQ | DMCFREQ_RATE72
 
+        byt DMCFREQ_IRQ | DMCFREQ_RATE54
+        byt DMCFREQ_IRQ | DMCFREQ_RATE72
+
+; * 1
 table_frequencies_3:
-        byt DMCFREQ_IRQ | DMCFREQ_RATE226
-        byt DMCFREQ_IRQ | DMCFREQ_RATE84
-        byt DMCFREQ_IRQ | DMCFREQ_RATE226
-        byt DMCFREQ_IRQ | DMCFREQ_RATE226
+        byt DMCFREQ_IRQ | DMCFREQ_RATE190
+        byt DMCFREQ_IRQ | DMCFREQ_RATE72
+        byt DMCFREQ_IRQ | DMCFREQ_RATE190
+        byt DMCFREQ_IRQ | DMCFREQ_RATE54
+
         byt DMCFREQ_IRQ | DMCFREQ_RATE214
         byt DMCFREQ_IRQ | DMCFREQ_RATE160
-        
+
+; * 8
 table_frequencies_4:
         byt DMCFREQ_IRQ | DMCFREQ_RATE54
         byt DMCFREQ_IRQ | DMCFREQ_RATE54
         byt DMCFREQ_IRQ | DMCFREQ_RATE54
         byt DMCFREQ_IRQ | DMCFREQ_RATE54
+
         byt DMCFREQ_IRQ | DMCFREQ_RATE72
         byt DMCFREQ_IRQ | DMCFREQ_RATE54
 
@@ -348,19 +452,22 @@ table_frame_offset:
 ; ----------------
 
 routine_frame_blank_start:
+        ; DMC P0=72
+
+        ; Store temp variables.
         sta zp_temp_a
         stx zp_temp_x
 
-        ; Update DMC with lookup0.
+        ; Update DMC P1+P2 with lookup0.
         ldx zp_frame_index
         lda table_frequencies_0,x
         sta DMCFREQ
 
         ; Change PPUMASK to greyscale during the blanking period.
-        lda #PPUMASK_GREYSCALE | PPUMASK_SPRITEENABLE
+        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
         sta PPUMASK
         
-        ; Start DMC sample fetch.
+        ; Acknowledge IRQ.
         lda #APUSTATUS_ENABLE_DMC
         sta APUSTATUS
         
@@ -374,14 +481,17 @@ routine_frame_blank_start:
 
 
 routine_frame_blank_split_1:
+        ; DMC P0=lookup0
+
         sta zp_temp_a
         stx zp_temp_x
 
-        ; Update DMC with lookup1.
+        ; Update DMC P1+P2 with lookup1.
         ldx zp_frame_index
         lda table_frequencies_1,x
         sta DMCFREQ
-        ; Start DMC sample fetch.
+
+        ; Acknowledge IRQ.
         lda #APUSTATUS_ENABLE_DMC
         sta APUSTATUS
 
@@ -396,14 +506,17 @@ routine_frame_blank_split_1:
 
 
 routine_frame_blank_split_2:
+        ; DMC P0=lookup1
+
         sta zp_temp_a
         stx zp_temp_x
 
-        ; Update DMC with lookup2.
+        ; Update DMC P1+P2 with lookup2.
         ldx zp_frame_index
         lda table_frequencies_2,x
         sta DMCFREQ
-        ; Start DMC sample fetch.
+
+        ; Acknowledge IRQ.
         lda #APUSTATUS_ENABLE_DMC
         sta APUSTATUS
 
@@ -420,31 +533,43 @@ routine_frame_blank_split_2:
 
 
 routine_frame_end:
+        ; DMC P0=lookup2
+
+        ; [+ 6] Preserve A and X register.
         sta zp_temp_a
         stx zp_temp_x
+        ; [= 6]
 
-        ; Update DMC with lookup3.
+        ; [+11] Update DMC P1 with lookup3.
         ldx zp_frame_index
         lda table_frequencies_3,x
         sta DMCFREQ
+        ; [=17]
 
-        ; Restore PPUMASK to start showing colors after the blanking period.
-        lda #PPUMASK_EMPHBLUE | PPUMASK_EMPHGREEN | PPUMASK_SPRITEENABLE
+        ; [+ 5] Restore PPUMASK to start showing colors after the blanking period.
+        lda #PPUMASK_COMMON | PPUMASK_EMPHBLUE | PPUMASK_EMPHGREEN
         sta PPUMASK
+        ; [=22]
         
-        ; Useless load (???)
+        ; [+ 2] Useless load (???)
         lda #$86
+        ; [=24]
 
-        ; Reset IRQ trampoline
+        ; [+ 5] Reset IRQ trampoline
         lda #lo(routine_irq)
         sta zp_irq_lo
+        ; [=29]
 
-        jsr sleep_36_cycles
+        ; [+42]
+        SLEEP 80
+        ; [=71]
 
-        ; Update DMC with lookup4.
+        ; [+ 8] Update DMC P2 with lookup4.
         lda table_frequencies_4,x
         sta DMCFREQ
-        ; Start DMC sample fetch.
+        ; [=79]
+
+        ; Acknowledge IRQ.
         lda #APUSTATUS_ENABLE_DMC
         sta APUSTATUS
 
@@ -588,7 +713,7 @@ frame_loop:
         lda #$00
         sta PPUSCROLL
 
-        lda #PPUMASK_BACKGROUNDENABLE | PPUMASK_SPRITEENABLE
+        lda #PPUMASK_COMMON
         sta PPUMASK
 
         ; Unused write (???)
@@ -596,23 +721,31 @@ frame_loop:
         sta zp_00
 
         ; Wait a long time (???)
-        ldx #10
-        ldy #0
-    -:
-        dey
-        bne -
-        dex
-        bne -
+;         ldx #10
+;         ldy #0
+;     -:
+;         dey
+;         bne -
+;         dex
+;         bne -
 
         ; Useless write (???)
         ldx #$00
         stx zp_09
 
+        ; Switch backgrounnd nametable to $2400.
+        lda #PPUCTRL_NAMETABLE2400 | PPUCTRL_SPRITEPATTERN | PPUCTRL_SPRITE16PXMODE
+        sta PPUCTRL
+
+        ; Impossible write (???)
+        lda dmc_sample
+        sta dmc_sample
+
         ; Setup initial DMC.
         SETMEM_DMCADDRESS DMC_SAMPLE_ADDR
         lda #0
         sta DMCLEN
-        lda #DMCFREQ_IRQ | DMCFREQ_RATE428
+        lda #DMCFREQ_IRQ | DMCFREQ_RATE54
         sta DMCFREQ
         ; Due to a hardware quirk, we need to write the sample length three times in a row
         ; so as not to trigger an immediate IRQ. See https://www.nesdev.org/wiki/APU_DMC
@@ -623,21 +756,18 @@ frame_loop:
         ; Re-enable interrupts.
         cli
 
-        ; Switch backgrounnd nametable to $2400.
-        lda #PPUCTRL_NAMETABLE2400 | PPUCTRL_SPRITEPATTERN | PPUCTRL_SPRITE16PXMODE
-        sta PPUCTRL
-
-        ; Impossible write (???)
-        lda dmc_sample
-        sta dmc_sample
-
-        ; Repeating rough cycle counter on main thread.
+        ; Repeating cycle of opcodes on main thread,
+        ; with some 7-cycle instructions to help
+        ; demonstrate IRQ jitter.
         ldx #0
     .loop_end:
-        inc $0100,X
-        bne .loop_end
-        inc $0101,X
-        bne .loop_end
+        ; inc $0100,X
+        ; bne .loop_end
+        ; inc $0101,X
+        ; bne .loop_end
+        ; rept 64
+        ;         nop
+        ; endm
         jmp .loop_end
 
 
@@ -659,32 +789,66 @@ table_palette:
     align 256
 
 routine_irq:
-        jmp irq_row_light - 2
-        jmp irq_row_dark - 3
-        jmp irq_row_light - 4
-        jmp irq_row_dark - 6
-        jmp irq_row_light - 7
-        jmp irq_row_dark - 8
-        jmp irq_row_light - 10
-        jmp irq_row_dark - 11
-        jmp irq_row_light - 12
-        jmp irq_row_dark - 14
-        jmp irq_row_light - 15
-        jmp irq_row_dark - 16
-        jmp irq_row_light - 18
-        jmp irq_row_dark - 19
-        jmp irq_row_light - 20
-        jmp irq_row_dark - 22
-        jmp irq_row_light - 23
-        jmp irq_row_dark - 24
-        jmp irq_row_light - 26
-        jmp irq_row_dark - 27
-        jmp irq_row_light - 28
-        jmp irq_row_dark - 30
-        jmp irq_row_light - 31
-        jmp irq_row_dark - 32
-        jmp irq_row_light - 34
-        jmp irq_row_dark - 35
+        jmp irq_row_light   - 0
+        jmp irq_row_dark    - 0
+        jmp irq_row_medium   - 3
+        jmp irq_row_light   - 1
+        jmp irq_row_dark    - 1
+        jmp irq_row_medium   - 5
+        jmp irq_row_light   - 2
+        jmp irq_row_dark    - 3
+
+        jmp irq_row_light   - 1
+        jmp irq_row_dark    - 1
+        jmp irq_row_medium    - 4
+        jmp irq_row_light   - 1
+        jmp irq_row_dark    - 1
+        jmp irq_row_medium    - 6
+        jmp irq_row_light   - 3
+        jmp irq_row_dark    - 4
+
+        jmp irq_row_light   - 2
+        jmp irq_row_dark    - 2
+        jmp irq_row_medium    - 6
+        jmp irq_row_light   - 2
+        jmp irq_row_dark    - 2
+        jmp irq_row_medium    - 8
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 5
+
+        jmp irq_row_light   - 3
+        jmp irq_row_dark    - 3
+        jmp irq_row_medium    - 7
+        jmp irq_row_light   - 3
+        jmp irq_row_dark    - 3
+        ; meedium
+        jmp irq_row_light   - 3
+        jmp irq_row_dark    - 3
+
+        jmp irq_row_light   - 1
+        jmp irq_row_dark    - 1
+        jmp irq_row_medium    - 4
+        jmp irq_row_light   - 1
+        jmp irq_row_dark    - 1
+        jmp irq_row_medium    - 6
+        jmp irq_row_light   - 1
+        jmp irq_row_dark    - 1
+
+        jmp irq_row_light   - 2
+        jmp irq_row_dark    - 2
+        jmp irq_row_medium    - 5
+        jmp irq_row_light   - 2
+        jmp irq_row_dark    - 2
+        jmp irq_row_medium    - 7
+        jmp irq_row_light   - 2
+        jmp irq_row_dark    - 2
+
+        jmp irq_row_light   - 3
+        jmp irq_row_dark    - 3
+        jmp irq_row_medium    - 6
+        jmp irq_row_light   - 3
+        jmp irq_row_dark    - 3
+
         jmp routine_frame_blank_start
 routine_irq_frame_blank_split_1:
         jmp routine_frame_blank_split_1
@@ -697,10 +861,10 @@ routine_irq_frame_end:
 
 ; --------sub start--------
 
-sleep_36_cycles:
-        rept 16
+        rept 128
             nop
         endm
+sleep_routine:
         rts
 
 
