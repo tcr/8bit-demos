@@ -218,16 +218,33 @@ reset:
         sta PPUADDR
         lda #lo(VRAM_NAMETABLE0)
         sta PPUADDR
-        lda #$4
+        lda #5
         sta PPUDATA
+        lda #6
+        sta PPUDATA
+        lda #7
         sta PPUDATA
 
-        lda #hi(VRAM_NAMETABLE0+34)
+        lda #hi(VRAM_NAMETABLE0+32)
         sta PPUADDR
-        lda #lo(VRAM_NAMETABLE0+34)
+        lda #lo(VRAM_NAMETABLE0+32)
         sta PPUADDR
-        lda #$4
+        lda #5+16
         sta PPUDATA
+        lda #6+16
+        sta PPUDATA
+        lda #7+16
+        sta PPUDATA
+
+        lda #hi(VRAM_NAMETABLE0+64)
+        sta PPUADDR
+        lda #lo(VRAM_NAMETABLE0+64)
+        sta PPUADDR
+        lda #5+32
+        sta PPUDATA
+        lda #6+32
+        sta PPUDATA
+        lda #7+32
         sta PPUDATA
 
         jmp frame_loop
@@ -734,7 +751,7 @@ frame_loop:
         stx zp_09
 
         ; Switch backgrounnd nametable to $2400.
-        lda #PPUCTRL_NAMETABLE2400 | PPUCTRL_SPRITEPATTERN | PPUCTRL_SPRITE16PXMODE
+        lda #PPUCTRL_NAMETABLE2400 | PPUCTRL_SPRITEPATTERN | PPUCTRL_SPRITE16PXMODE | PPUCTRL_BACKGROUNDPATTERN
         sta PPUCTRL
 
         ; Impossible write (???)
@@ -761,13 +778,10 @@ frame_loop:
         ; demonstrate IRQ jitter.
         ldx #0
     .loop_end:
-        ; inc $0100,X
-        ; bne .loop_end
-        ; inc $0101,X
-        ; bne .loop_end
-        ; rept 64
-        ;         nop
-        ; endm
+        inc $0100,X
+        bne .loop_end
+        inc $0101,X
+        bne .loop_end
         jmp .loop_end
 
 
