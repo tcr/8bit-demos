@@ -145,7 +145,7 @@ zp_irq_lo equ $06
 zp_irq_hi equ $07
 
 zp_temp_a equ $08
-zp_09 equ $09
+zp_ equ $09
 zp_temp_x equ $0a
 zp_0b equ $0b
 zp_0c equ $0c
@@ -155,6 +155,13 @@ zp_0f equ $0f
 
 zp_joypad_p0 equ $10
 zp_joypad_p1 equ $11
+
+zp_irq_temp_a equ $12
+zp_irq_temp_y equ $13
+zp_irq_pos_y equ $14
+
+zp_irq_ptr_lo equ $15
+zp_irq_ptr_hi equ $16
 
 
 PPUMASK_COMMON = PPUMASK_BACKGROUNDENABLE | PPUMASK_SPRITEENABLE
@@ -310,15 +317,14 @@ reset:
         dex
         bne -
 
-        ; Useless write (???)
-        ldx #$00
-        stx zp_09
-
         ; Switch backgrounnd nametable to $2400.
         lda #PPUCTRL_NAMETABLE2400 | PPUCTRL_SPRITEPATTERN | PPUCTRL_SPRITE16PXMODE | PPUCTRL_BACKGROUNDPATTERN
         sta PPUCTRL
 
     .setup_dmc:
+        lda #0
+        sta zp_irq_pos_y
+
         ; Store IRQ trampoline "jmp (table_irq_0)" into ZP.
         lda #$6C
         sta zp_irq_jmp
@@ -727,6 +733,62 @@ d16 macro reg
     endif
     endm
 
+d16hi macro reg
+    if      "REG"<>""
+        byt    hi(reg)
+        shift
+        d16hi ALLARGS
+    endif
+    endm
+
+d16lo macro reg
+    if      "REG"<>""
+        byt    lo(reg)
+        shift
+        d16lo ALLARGS
+    endif
+    endm
+
+DPAIR set ""
+
+d16pair macro
+        if (DPAIR<>"hi") && (DPAIR<>"lo")
+            error "Expected dpair_hi or dpair_lo macro to be used, got \{DPAIR}"
+        elseif DPAIR=="hi"
+            d16hi ALLARGS
+        else
+            d16lo ALLARGS
+        endif
+    endm
+
+d8pair macro reglo, reghi
+        if (DPAIR<>"hi") && (DPAIR<>"lo")
+            error "Expected dpair_hi or dpair_lo macro to be used, got \{DPAIR}"
+        elseif DPAIR=="hi"
+            d8 reglo
+            shift
+            shift
+            d8pair ALLARGS
+        else
+            d8 reghi
+            shift
+            shift
+            d8pair ALLARGS
+        endif
+    endm
+
+dpair_hi macro
+DPAIR set "hi"
+    endm
+
+dpair_lo macro
+DPAIR set "lo"
+    endm
+
+dpair_end macro
+DPAIR set ""
+    endm
+
 ; Frequencies to use for each frame index.
 
         align 256
@@ -738,8 +800,17 @@ IRQ_STEP macro ADDRESS
 
 
         align 256
+        dpair_lo
 table_irq_0:
+table_irq_lo:
         include "irq_table.asm"
+        dpair_end
+
+        align 256
+        dpair_hi
+table_irq_hi:
+        include "irq_table.asm"
+        dpair_end
 
 
 ; table_irq_end:
@@ -833,6 +904,21 @@ table_frame_offset:
         byt $FF, $00, $01, $02
         ; 4: down, 5: up
         byt $FF, $01
+
+
+; --------irq routine--------
+
+irq:
+        sta zp_irq_temp_a
+        sty zp_irq_temp_y
+
+        ldy zp_irq_pos_y
+        lda table_irq_lo,y
+        sta zp_irq_ptr_lo
+        lda table_irq_hi,y
+        sta zp_irq_ptr_hi
+        jmp (zp_irq_ptr_lo)
+
 
 
 ; --------sub start--------
