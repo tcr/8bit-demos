@@ -148,8 +148,9 @@ PPUMASK_COMMON = PPUMASK_BACKGROUNDENABLE | PPUMASK_SPRITEENABLE
     org $8000
 
 reset:
-        ; Clear all the flags
+        ; Disable interrupts.
         sei
+        ; Reset all the flags and registers.
         lda #0
         sta PPUCTRL
         sta PPUMASK
@@ -169,6 +170,7 @@ reset:
         dex
         bne -
 
+    .clear_internal_ram:
         ; Clear out console RAM
         lda #0
         ldx #0
@@ -184,6 +186,7 @@ reset:
         inx
         bne -
 
+    .setup_ppu:
         ; Trigger OAM DMA. This has the side effect of aligning the APU and CPU on an
         ; even cycle. Though this feature is not used in this demo.
         lda #$07
@@ -213,6 +216,19 @@ reset:
         inx
         bne -
 
+        ; Load palette table into palette VRAM.
+        lda #hi(VRAM_PALETTETABLE)
+        sta PPUADDR
+        ldx #lo(VRAM_PALETTETABLE)
+        stx PPUADDR
+    -:
+        lda table_palette,X
+        sta PPUDATA
+        inx
+        cpx #$20
+        bcc -
+
+    .draw_specific_tiles:
         ; Set some specific tiles in nametable $2000.
         lda #hi(VRAM_NAMETABLE0)
         sta PPUADDR
@@ -247,151 +263,435 @@ reset:
         lda #7+32
         sta PPUDATA
 
-        jmp frame_loop
+        ; The vblank flag is in an unknown state after reset,
+        ; so we perforrm two waits for vertical blank to make sure that the
+        ; PPU has stabilized.
+        bit PPUSTATUS
+    -:
+        bit PPUSTATUS
+        bpl -
 
-        
-; ----------------
+        ; Setup scroll registers.
+        lda #$F8
+        sta PPUSCROLL
+        lda #$00
+        sta PPUSCROLL
 
-; When called, we expect the DMC rate to be set to 72.
-; We change the DMC rate for the second clock, and at least 72 cycles for the first clock to finish.
-        JUMP_SLIDE 40
+        lda #PPUMASK_COMMON
+        sta PPUMASK
+
+        ; Unused write (???)
+        lda #$40
+        sta zp_00
+
+        ; Wait a long time (???)
+        ldx #10
+        ldy #0
+    -:
+        dey
+        bne -
+        dex
+        bne -
+
+        ; Useless write (???)
+        ldx #$00
+        stx zp_09
+
+        ; Switch backgrounnd nametable to $2400.
+        lda #PPUCTRL_NAMETABLE2400 | PPUCTRL_SPRITEPATTERN | PPUCTRL_SPRITE16PXMODE | PPUCTRL_BACKGROUNDPATTERN
+        sta PPUCTRL
+
+    .setup_dmc:
+        ; Store "jmp $8300" into ZP.
+        lda #$4C
+        sta zp_irq_jmp
+        lda #lo(routine_irq)
+        sta zp_irq_lo
+        lda #hi(routine_irq)
+        sta zp_irq_hi
+
+        ; Setup initial DMC.
+        SETMEM_DMCADDRESS DMC_SAMPLE_ADDR
+        lda #0
+        sta DMCLEN
+        lda #DMCFREQ_IRQ | DMCFREQ_RATE54
+        sta DMCFREQ
+        ; Due to a hardware quirk, we need to write the sample length three times in a row
+        ; so as not to trigger an immediate IRQ. See https://www.nesdev.org/wiki/APU_DMC
+        lda #APUSTATUS_ENABLE_DMC
+        sta APUSTATUS
+        sta APUSTATUS
+        sta APUSTATUS
+        ; Re-enable interrupts.
+        cli
+
+        ; Repeating cycle of opcodes on main thread,
+        ; with some 7-cycle instructions to help
+        ; demonstrate IRQ jitter.
+        ldx #0
+    .loop_end:
+        inc $0100,X
+        bne .loop_end
+        inc $0101,X
+        bne .loop_end
+        jmp .loop_end
+
+
+; --------data block--------
+
+; PPU Palette table
+table_palette:
+        ; Background
+        byt $22, $21, $14, $8c
+        byt $22, $21, $14, $38
+        byt $22, $21, $14, $38 
+        byt $22, $21, $14, $38
+        ; Sprites
+        byt $22, $21, $11, $31
+        byt $22, $21, $11, $31
+        byt $22, $21, $11, $31
+        byt $22, $21, $11, $31
+
+
+; --------joypad routines--------
+
+; Also see https://www.nesdev.org/wiki/Controller_reading_code
+routine_read_joypad:
+        ; Start controller read.
+        lda #JOYPADLATCH_FILLCONTROLLER
+        sta JOYPADLATCH
+
+        ; $80 is loaded into the result first.
+        ; Once eight bits are shifted in, last bit will be shifted out, terminating the loop.
+        lda #%10000000
+        sta zp_joypad_p0
+        sta zp_joypad_p1
+
+        ; By storing 0 into JOYPAD1, the strobe bit is cleared and the reloading stops.
+        lda #$00
+        sta JOYPADLATCH
+    -:
+        ; Read the latch for P0. Move bit D0 -> Carry, then into the top bit of P0.
+        lda JOYPADP0READ
+        lsr a
+        ror zp_joypad_p0
+
+        ; Read the latch for P1. Move bit D0 -> Carry, then into the top bit of P1.
+        lda JOYPADP1READ
+        lsr a
+        ror zp_joypad_p1
+
+        ; Once we've read all 8 bits (ZP value shifts off top bit), exit the loop.
+        bcc -
+
+        rts
+
+
+routine_update_frame_from_joypad:
+        ; Calculate frame adjustment based off joypad values.
+        lda table_frame_offset,x
+        tax
+        ; If we have a positive offset, use it. Otherwise, evaluate joypad.
+        bpl +
+
+        ; Start checking joypad for P0.
+        lda zp_joypad_p0
+        ; BUTTON_RIGHT
+        ldx #$01
+        asl a
+        bcs +
+        ; BUTTON_LEFT
+        ldx #$00
+        asl a
+        bcs +
+        ; BUTTON_DOWN
+        ldx #$04
+        asl a
+        bcs +
+        ; BUTTON_UP
+        ldx #$05
+        asl a
+        bcs +
+
+        ; No directional buttons pressed, so restart the frame loop at x = 3.
+        ldx #$03
+    +:
+        stx zp_frame_index
+
+        rts
+
+
+; ------ irq rows -------
+
+IRQ_ADVANCE = 3
+
+    ; Expect to be called with DMC P0 = 54.
+    ; (IRQ can be called up to 22 CPU cycles late according to Mesen.)
+    ; We change the DMC rate to P1 immediately, and at least P0 cycles to change to P2.
+        JUMP_SLIDE 8
 irq_row_medium:
-        ; [+ 3] Preserve A register.
+        ; [+ 3] Preserve registers.
         sta zp_temp_a
+        ; [= 3]
+
         ; [+ 6] Update DMC with P1 rate.
         lda #DMCFREQ_IRQ | DMCFREQ_RATE72
         sta DMCFREQ
         ; [= 9]
-
-        ; [+10] Sleep
-        SLEEP 10
-        ; [=19]
 
         ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
         lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
         sta PPUMASK
         lda #PPUMASK_COMMON | PPUMASK_EMPHRED
         sta PPUMASK
-        ; [=29]
+        ; [=19]
 
         ; [+5] Acknowledge IRQ.
         lda #APUSTATUS_ENABLE_DMC
         sta APUSTATUS
-        ; [=34]
+        ; [=24]
 
         ; [+10] Advance IRQ one jump cycle.
         lda zp_irq_lo
         clc
-        adc #3
+        adc #IRQ_ADVANCE
         sta zp_irq_lo
-        ; [=44]
+        ; [=34]
 
         ; [+24] Sleep.
-        SLEEP 24
-        ; [=68]
-        
-        ; [+5] Update DMC with P2 rate.
+        ; SLEEP 24
+        ; [+5] After 54 (P0) cycles, update DMC with P2 rate.
         lda #DMCFREQ_IRQ | DMCFREQ_RATE54
         sta DMCFREQ
-        ; [=73]
+        ; [=63]
 
+        ; Restore registers and return.
         lda zp_temp_a
         rti
 
-; When called, we expect the DMC rate to be set to 72.
-; We change the DMC rate for the second clock, and at least 72 cycles for the first clock to finish.
-        JUMP_SLIDE 10
+    ; Expect to be called with DMC P0 = 54.
+    ; (IRQ can be called up to 22 CPU cycles late according to Mesen.)
+    ; We change the DMC rate to P1 immediately, and at least P0 cycles to change to P2.
+        JUMP_SLIDE 8
 irq_row_dark:
-        ; [+ 3] Preserve A register.
+        ; [+ 3] Preserve registers.
         sta zp_temp_a
+        ; [= 3]
+
         ; [+ 6] Update DMC with P1 rate.
         lda #DMCFREQ_IRQ | DMCFREQ_RATE72
         sta DMCFREQ
         ; [= 9]
-
-        ; [+10] Sleep
-        SLEEP 10
-        ; [=19]
 
         ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
         lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
         sta PPUMASK
         lda #PPUMASK_COMMON | PPUMASK_EMPHRED | PPUMASK_EMPHGREEN
         sta PPUMASK
-        ; [=29]
+        ; [=19]
 
         ; [+ 5] Acknowledge IRQ.
         lda #APUSTATUS_ENABLE_DMC
         sta APUSTATUS
-        ; [=34]
+        ; [=24]
 
         ; [+10] Advance IRQ one jump cycle.
         lda zp_irq_lo
         clc
-        adc #3
+        adc #IRQ_ADVANCE
         sta zp_irq_lo
-        ; [=44]
+        ; [=34]
 
         ; [+24] Sleep.
-        SLEEP 24
-        ; [=68]
-        
-        ; [+5] Update DMC with P2 rate.
+        ; SLEEP 24
+        ; [+5] After 54 (P0) cycles, update DMC with P2 rate.
         lda #DMCFREQ_IRQ | DMCFREQ_RATE54
         sta DMCFREQ
-        ; [=73]
+        ; [=63]
 
+        ; Restore registers and return.
         lda zp_temp_a
         rti
 
 
-; ----------------
-
-; When called, we expect the DMC rate to be set to 54.
-; We change the DMC rate for the second clock, and at least 54 cycles for the first clock to finish.
-        JUMP_SLIDE 10
+    ; Expect to be called with DMC P0 = 54.
+    ; (IRQ can be called up to 22 CPU cycles late according to Mesen.)
+    ; We change the DMC rate to P1 immediately, and at least P0 cycles to change to P2.
+        JUMP_SLIDE 8
 irq_row_light:
-        ; [+ 3] Preserve A register.
+        ; [+ 3] Preserve registers.
         sta zp_temp_a
+        ; [= 3]
+
         ; [+ 6] Update DMC with P1 rate.
         lda #DMCFREQ_IRQ | DMCFREQ_RATE84
         sta DMCFREQ
-        ; [+ 3] Now preserve X register as well.
-        stx zp_temp_x
-        ; [=12]
-
-        ; [+ 5] Acknowledge IRQ.
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-        ; [=17]
-
-        ; [+10] Advance IRQ one jump cycle.
-        lda zp_irq_lo
-        clc
-        adc #3
-        sta zp_irq_lo
-        ; [=27]
+        ; [= 9]
 
         ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
         lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
         sta PPUMASK
         lda #PPUMASK_COMMON | PPUMASK_EMPHGREEN
         sta PPUMASK
-        ; [=37]
+        ; [=19]
 
-        ; [+20] Sleep.
-        SLEEP 20
-        ; [=57]
+        ; [+ 5] Acknowledge IRQ.
+        lda #APUSTATUS_ENABLE_DMC
+        sta APUSTATUS
+        ; [=24]
 
-        ; [+ 3] Restore X register.
-        ldx zp_temp_x
-        ; [=60]
+        ; [+10] Advance IRQ one jump cycle.
+        lda zp_irq_lo
+        clc
+        adc #IRQ_ADVANCE
+        sta zp_irq_lo
+        ; [=34]
 
-        ; [+ 5] Update DMC with P2 rate.
+        ; [+24] Sleep.
+        ; SLEEP 24
+        ; [+ 5] After 54 (P0) cycles, update DMC with P2 rate.
         lda #DMCFREQ_IRQ | DMCFREQ_RATE54
         sta DMCFREQ
-        ; [=65]
+        ; [=63]
 
+        ; Restore registers and return.
+        lda zp_temp_a
+        rti
+
+
+; -------end of frame irq---------
+
+routine_frame_blank_start:
+        ; Preserve registers.
+        sta zp_temp_a
+        stx zp_temp_x
+
+        ; Update DMC P1 and P2 with lookup0.
+        ldx zp_frame_index
+        lda table_frequencies_0,x
+        sta DMCFREQ
+
+        ; Change PPUMASK to greyscale during the blanking period.
+        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
+        sta PPUMASK
+        
+        ; Acknowledge IRQ.
+        lda #APUSTATUS_ENABLE_DMC
+        sta APUSTATUS
+        
+        ; Advance IRQ trampoline
+        lda zp_irq_lo
+        clc
+        adc #IRQ_ADVANCE
+        sta zp_irq_lo
+        
+        ; Restore registers and return.
+        ldx zp_temp_x
+        lda zp_temp_a
+        rti
+
+
+routine_frame_blank_split_1:
+        ; Preserve registers.
+        sta zp_temp_a
+        stx zp_temp_x
+
+        ; Update DMC P1 and P2 with lookup1.
+        ldx zp_frame_index
+        lda table_frequencies_1,x
+        sta DMCFREQ
+
+        ; Do any color updates if needed.
+
+        ; Acknowledge IRQ.
+        lda #APUSTATUS_ENABLE_DMC
+        sta APUSTATUS
+
+        ; Advance IRQ trampoline
+        lda zp_irq_lo
+        clc
+        adc #IRQ_ADVANCE
+        sta zp_irq_lo
+
+        ; Restore registers and return.
+        ldx zp_temp_x
+        lda zp_temp_a
+        rti
+
+
+routine_frame_blank_split_2:
+        ; Preserve registers.
+        sta zp_temp_a
+        stx zp_temp_x
+
+        ; Update DMC P1 and P2 with lookup2.
+        ldx zp_frame_index
+        lda table_frequencies_2,x
+        sta DMCFREQ
+
+        ; Do any color updates if needed.
+
+        ; Acknowledge IRQ.
+        lda #APUSTATUS_ENABLE_DMC
+        sta APUSTATUS
+
+        ; Advance IRQ trampoline
+        lda zp_irq_lo
+        clc
+        adc #IRQ_ADVANCE
+        sta zp_irq_lo
+
+        ; Read joypads (CPU cycles in this subroutine are not bounded).
+        jsr routine_read_joypad
+
+        ; Restore registers and return.
+        ldx zp_temp_x
+        lda zp_temp_a
+        rti
+
+
+routine_frame_end:
+        ; DMC P0=lookup2
+
+        ; [+ 6] Preserve registers.
+        sta zp_temp_a
+        stx zp_temp_x
+        ; [= 6]
+
+        ; [+11] Update DMC P1 with lookup3.
+        ldx zp_frame_index
+        lda table_frequencies_3,x
+        sta DMCFREQ
+        ; [=17]
+
+        ; [+ 5] Restore PPUMASK to start showing colors after the blanking period.
+        lda #PPUMASK_COMMON | PPUMASK_EMPHBLUE | PPUMASK_EMPHGREEN
+        sta PPUMASK
+        ; [=22]
+
+        ; [+ 5] Acknowledge IRQ.
+        lda #APUSTATUS_ENABLE_DMC
+        sta APUSTATUS
+        ; [=34]
+
+        ; [+ 5] Reset IRQ trampoline
+        lda #lo(routine_irq)
+        sta zp_irq_lo
+        ; [=29]
+
+        ; [+42]
+        SLEEP 82
+        ; [=76]
+
+        ; [+ 8] Update DMC P2 with lookup4.
+        lda table_frequencies_4,x
+        sta DMCFREQ
+        ; [=84]
+
+        jsr routine_update_frame_from_joypad
+
+        ; Restore registers and return.
+        ldx zp_temp_x
         lda zp_temp_a
         rti
 
@@ -460,413 +760,74 @@ table_frame_offset:
 
 ; ----------------
 
-routine_frame_blank_start:
-        ; DMC P0=72
-
-        ; Store temp variables.
-        sta zp_temp_a
-        stx zp_temp_x
-
-        ; Update DMC P1+P2 with lookup0.
-        ldx zp_frame_index
-        lda table_frequencies_0,x
-        sta DMCFREQ
-
-        ; Change PPUMASK to greyscale during the blanking period.
-        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
-        sta PPUMASK
-        
-        ; Acknowledge IRQ.
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-        
-        ; Advance IRQ trampoline
-        lda zp_irq_lo
-        clc
-        adc #3
-        sta zp_irq_lo
-        
-        ldx zp_temp_x
-        lda zp_temp_a
-        rti
-
-
-routine_frame_blank_split_1:
-        ; DMC P0=lookup0
-
-        sta zp_temp_a
-        stx zp_temp_x
-
-        ; Update DMC P1+P2 with lookup1.
-        ldx zp_frame_index
-        lda table_frequencies_1,x
-        sta DMCFREQ
-
-        ; Acknowledge IRQ.
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-
-        ; Advance IRQ trampoline
-        lda zp_irq_lo
-        clc
-        adc #3
-        sta zp_irq_lo
-
-        ldx zp_temp_x
-        lda zp_temp_a
-
-        rti
-
-
-routine_frame_blank_split_2:
-        ; DMC P0=lookup1
-
-        sta zp_temp_a
-        stx zp_temp_x
-
-        ; Update DMC P1+P2 with lookup2.
-        ldx zp_frame_index
-        lda table_frequencies_2,x
-        sta DMCFREQ
-
-        ; Acknowledge IRQ.
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-
-        ; Read joypads
-        jsr routine_read_joypad
-
-        ; Advance IRQ trampoline
-        lda zp_irq_lo
-        clc
-        adc #3
-        sta zp_irq_lo
-
-        ldx zp_temp_x
-        lda zp_temp_a
-        rti
-
-
-routine_frame_end:
-        ; DMC P0=lookup2
-
-        ; [+ 6] Preserve A and X register.
-        sta zp_temp_a
-        stx zp_temp_x
-        ; [= 6]
-
-        ; [+11] Update DMC P1 with lookup3.
-        ldx zp_frame_index
-        lda table_frequencies_3,x
-        sta DMCFREQ
-        ; [=17]
-
-        ; [+ 5] Restore PPUMASK to start showing colors after the blanking period.
-        lda #PPUMASK_COMMON | PPUMASK_EMPHBLUE | PPUMASK_EMPHGREEN
-        sta PPUMASK
-        ; [=22]
-        
-        ; [+ 2] Useless load (???)
-        lda #$86
-        ; [=24]
-
-        ; [+ 5] Reset IRQ trampoline
-        lda #lo(routine_irq)
-        sta zp_irq_lo
-        ; [=29]
-
-        ; [+42]
-        SLEEP 80
-        ; [=71]
-
-        ; [+ 8] Update DMC P2 with lookup4.
-        lda table_frequencies_4,x
-        sta DMCFREQ
-        ; [=79]
-
-        ; Acknowledge IRQ.
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-
-        ; Calculate frame adjustment based off joypad values.
-        lda table_frame_offset,x
-        tax
-        ; If we have a positive offset, use it. Otherwise, evaluate joypad.
-        bpl +
-
-        ; Start checking joypad for P0.
-        lda zp_joypad_p0
-        ; BUTTON_RIGHT
-        ldx #$01
-        asl a
-        bcs +
-        ; BUTTON_LEFT
-        ldx #$00
-        asl a
-        bcs +
-        ; BUTTON_DOWN
-        ldx #$04
-        asl a
-        bcs +
-        ; BUTTON_UP
-        ldx #$05
-        asl a
-        bcs +
-
-        ; No directional buttons pressed, so restart the frame loop at x = 3.
-        ldx #$03
-    +:
-        stx zp_frame_index
-
-        ldx zp_temp_x
-        lda zp_temp_a
-        rti
-
-
-; --------nmi--------
-
-; In this setup, we do nothing with NMI and don't even enable it.
-nmi:
-        rti
-
-
-
-
-; --------unknown routine--------
-
-routine_81F7:
-        ; Unknown routine
-        cli
-        sta zp_01
-        lda #$00
-        sta zp_0F
-        inc zp_04
-        lda #$3F
-        sta PPUADDR
-        lda #$01
-        sta PPUADDR
-        lda zp_04
-        lda #$01
-        sta PPUDATA
-        lda zp_01
-        rti
-
-
-; --------sub start--------
-
-; Also see https://www.nesdev.org/wiki/Controller_reading_code
-routine_read_joypad:
-        ; Start controller read.
-        lda #JOYPADLATCH_FILLCONTROLLER
-        sta JOYPADLATCH
-
-        ; $80 is loaded into the result first.
-        ; Once eight bits are shifted in, last bit will be shifted out, terminating the loop.
-        lda #%10000000
-        sta zp_joypad_p0
-        sta zp_joypad_p1
-
-        ; By storing 0 into JOYPAD1, the strobe bit is cleared and the reloading stops.
-        lda #$00
-        sta JOYPADLATCH
-    -:
-        ; Read the latch for P0. Move bit D0 -> Carry, then into the top bit of P0.
-        lda JOYPADP0READ
-        lsr a
-        ror zp_joypad_p0
-
-        ; Read the latch for P1. Move bit D0 -> Carry, then into the top bit of P1.
-        lda JOYPADP1READ
-        lsr a
-        ror zp_joypad_p1
-
-        ; Once we've read all 8 bits (ZP value shifts off top bit), exit the loop.
-        bcc -
-
-        rts
-
-
-; ----------------
-
-frame_loop:
-        ; Store "jmp $8300" into ZP.
-        lda #$4C
-        sta zp_irq_jmp
-        lda #lo(routine_irq)
-        sta zp_irq_lo
-        lda #hi(routine_irq)
-        sta zp_irq_hi
-
-        ; Impossible write to APU sample block (???)
-        ldx #$00
-        lda dmc_sample,X
-        sta dmc_sample,X
-
-        ; Load palette table into palette VRAM.
-        lda #hi(VRAM_PALETTETABLE)
-        sta PPUADDR
-        ldx #lo(VRAM_PALETTETABLE)
-        stx PPUADDR
-    -:
-        lda table_palette,X
-        sta PPUDATA
-        inx
-        cpx #$20
-        bcc -
-
-        ; The vblank flag is in an unknown state after reset,
-        ; so we perforrm two waits for vertical blank to make sure that the
-        ; PPU has stabilized.
-        bit PPUSTATUS
-    -:
-        bit PPUSTATUS
-        bpl -
-
-        ; Setup scroll registers.
-        lda #$F8
-        sta PPUSCROLL
-        lda #$00
-        sta PPUSCROLL
-
-        lda #PPUMASK_COMMON
-        sta PPUMASK
-
-        ; Unused write (???)
-        lda #$40
-        sta zp_00
-
-        ; Wait a long time (???)
-;         ldx #10
-;         ldy #0
-;     -:
-;         dey
-;         bne -
-;         dex
-;         bne -
-
-        ; Useless write (???)
-        ldx #$00
-        stx zp_09
-
-        ; Switch backgrounnd nametable to $2400.
-        lda #PPUCTRL_NAMETABLE2400 | PPUCTRL_SPRITEPATTERN | PPUCTRL_SPRITE16PXMODE | PPUCTRL_BACKGROUNDPATTERN
-        sta PPUCTRL
-
-        ; Impossible write (???)
-        lda dmc_sample
-        sta dmc_sample
-
-        ; Setup initial DMC.
-        SETMEM_DMCADDRESS DMC_SAMPLE_ADDR
-        lda #0
-        sta DMCLEN
-        lda #DMCFREQ_IRQ | DMCFREQ_RATE54
-        sta DMCFREQ
-        ; Due to a hardware quirk, we need to write the sample length three times in a row
-        ; so as not to trigger an immediate IRQ. See https://www.nesdev.org/wiki/APU_DMC
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-        sta APUSTATUS
-        sta APUSTATUS
-        ; Re-enable interrupts.
-        cli
-
-        ; Repeating cycle of opcodes on main thread,
-        ; with some 7-cycle instructions to help
-        ; demonstrate IRQ jitter.
-        ldx #0
-    .loop_end:
-        inc $0100,X
-        bne .loop_end
-        inc $0101,X
-        bne .loop_end
-        jmp .loop_end
-
-
-; --------data block--------
-
-; PPU Palette table
-table_palette:
-        byt $22, $21, $11, $31, $22, $21, $11, $31
-        byt $22, $21, $11, $31, $22, $21, $11, $31
-        byt $22, $21, $11, $31, $22, $21, $11, $31
-        byt $22, $21, $11, $31, $22, $21, $11, $31
-
-
-
-; ----------------
-
     ; IRQ trampoline routine must be aligned to a page boundary,
     ; because the zero page trampoline only ever rewrites the lower byte.
     align 256
 
 routine_irq:
-        jmp irq_row_light   - 0
-        jmp irq_row_dark    - 0
-        jmp irq_row_medium   - 3
-        jmp irq_row_light   - 1
-        jmp irq_row_dark    - 1
-        jmp irq_row_medium   - 5
-        jmp irq_row_light   - 2
-        jmp irq_row_dark    - 3
-
-        jmp irq_row_light   - 1
-        jmp irq_row_dark    - 1
-        jmp irq_row_medium    - 4
-        jmp irq_row_light   - 1
-        jmp irq_row_dark    - 1
-        jmp irq_row_medium    - 6
-        jmp irq_row_light   - 3
-        jmp irq_row_dark    - 4
-
-        jmp irq_row_light   - 2
-        jmp irq_row_dark    - 2
-        jmp irq_row_medium    - 6
-        jmp irq_row_light   - 2
-        jmp irq_row_dark    - 2
-        jmp irq_row_medium    - 8
         jmp irq_row_light   - 4
-        jmp irq_row_dark    - 5
+        jmp irq_row_dark    - 0
+        jmp irq_row_medium  - 0
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 0
+        jmp irq_row_medium  - 0
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 0
 
-        jmp irq_row_light   - 3
-        jmp irq_row_dark    - 3
-        jmp irq_row_medium    - 7
-        jmp irq_row_light   - 3
-        jmp irq_row_dark    - 3
-        ; meedium
-        jmp irq_row_light   - 3
-        jmp irq_row_dark    - 3
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 0
+        jmp irq_row_medium  - 0
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 0
+        jmp irq_row_medium  - 0
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 0
 
-        jmp irq_row_light   - 1
-        jmp irq_row_dark    - 1
-        jmp irq_row_medium    - 4
-        jmp irq_row_light   - 1
-        jmp irq_row_dark    - 1
-        jmp irq_row_medium    - 6
-        jmp irq_row_light   - 1
-        jmp irq_row_dark    - 1
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 0
+        jmp irq_row_medium  - 0
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 0
+        jmp irq_row_medium  - 0
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 0
 
-        jmp irq_row_light   - 2
-        jmp irq_row_dark    - 2
-        jmp irq_row_medium    - 5
-        jmp irq_row_light   - 2
-        jmp irq_row_dark    - 2
-        jmp irq_row_medium    - 7
-        jmp irq_row_light   - 2
-        jmp irq_row_dark    - 2
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 0
+        jmp irq_row_medium  - 0
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 0
+        ; skip medium
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 0
 
-        jmp irq_row_light   - 3
-        jmp irq_row_dark    - 3
-        jmp irq_row_medium    - 6
-        jmp irq_row_light   - 3
-        jmp irq_row_dark    - 3
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 0
+        jmp irq_row_medium  - 0
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 0
+        jmp irq_row_medium  - 0
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 0
+
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 0
+        jmp irq_row_medium  - 0
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 0
+        jmp irq_row_medium  - 0
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 0
+
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 0
+        jmp irq_row_medium  - 0
+        jmp irq_row_light   - 4
+        jmp irq_row_dark    - 0
 
         jmp routine_frame_blank_start
-routine_irq_frame_blank_split_1:
         jmp routine_frame_blank_split_1
-routine_irq_frame_blank_split_2:
         jmp routine_frame_blank_split_2
-routine_irq_frame_end:
         jmp routine_frame_end
         rts
 
@@ -878,6 +839,13 @@ routine_irq_frame_end:
         endm
 sleep_routine:
         rts
+
+
+; --------nmi--------
+
+; In this setup, we do nothing with NMI and don't even enable it.
+nmi:
+        rti
 
 
 ; --------APU sample block--------
