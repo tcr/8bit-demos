@@ -714,7 +714,21 @@ routine_frame_end:
 
 ; --------DMC frequencies--------
 
+
+dw macro reg
+    if      "REG"<>""
+        byt    lo(reg), hi(reg)
+        shift
+        pushlist ALLARGS
+    endif
+    endm
+
 ; Frequencies to use for each frame index.
+
+example_dma:
+        dw irq_row_light   - 4
+        byt DMCFREQ_IRQ_RATE72, DMCFREQ_IRQ_RATE54, 0, 0, 0, 0
+
 
 ; * 8
 table_frequencies_0:
