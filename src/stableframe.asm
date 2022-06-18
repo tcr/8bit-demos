@@ -256,48 +256,44 @@ reset:
 ; We change the DMC rate for the second clock, and at least 72 cycles for the first clock to finish.
         JUMP_SLIDE 40
 irq_row_medium:
-        ; [+3] Preserve A register.
+        ; [+ 3] Preserve A register.
         sta zp_temp_a
-        ; [+6] Update DMC with P1 rate.
+        ; [+ 6] Update DMC with P1 rate.
         lda #DMCFREQ_IRQ | DMCFREQ_RATE72
         sta DMCFREQ
-        ; [+3] Now preserve X register as well.
-        stx zp_temp_x
-        ; [=12]
+        ; [= 9]
 
-        SLEEP 8
+        ; [+10] Sleep
+        SLEEP 10
+        ; [=19]
 
         ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
         lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
         sta PPUMASK
         lda #PPUMASK_COMMON | PPUMASK_EMPHRED
         sta PPUMASK
-        ; [=22]
+        ; [=29]
 
         ; [+5] Acknowledge IRQ.
         lda #APUSTATUS_ENABLE_DMC
         sta APUSTATUS
-        ; [=27]
+        ; [=34]
 
         ; [+10] Advance IRQ one jump cycle.
         lda zp_irq_lo
         clc
         adc #3
         sta zp_irq_lo
-        ; [=37]
+        ; [=44]
 
-        ; [+20] Sleep.
-        SLEEP 20
-        ; [=57]
-
-        ; [+ 3] Restore X register.
-        ldx zp_temp_x
-        ; [=82]
+        ; [+24] Sleep.
+        SLEEP 24
+        ; [=68]
         
         ; [+5] Update DMC with P2 rate.
         lda #DMCFREQ_IRQ | DMCFREQ_RATE54
         sta DMCFREQ
-        ; [=87]
+        ; [=73]
 
         lda zp_temp_a
         rti
@@ -306,48 +302,44 @@ irq_row_medium:
 ; We change the DMC rate for the second clock, and at least 72 cycles for the first clock to finish.
         JUMP_SLIDE 10
 irq_row_dark:
-        ; [+3] Preserve A register.
+        ; [+ 3] Preserve A register.
         sta zp_temp_a
-        ; [+6] Update DMC with P1 rate.
+        ; [+ 6] Update DMC with P1 rate.
         lda #DMCFREQ_IRQ | DMCFREQ_RATE72
         sta DMCFREQ
-        ; [+3] Now preserve X register as well.
-        stx zp_temp_x
-        ; [=12]
+        ; [= 9]
 
-        SLEEP 8
+        ; [+10] Sleep
+        SLEEP 10
+        ; [=19]
 
         ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
         lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
         sta PPUMASK
         lda #PPUMASK_COMMON | PPUMASK_EMPHRED | PPUMASK_EMPHGREEN
         sta PPUMASK
-        ; [=22]
+        ; [=29]
 
-        ; [+5] Acknowledge IRQ.
+        ; [+ 5] Acknowledge IRQ.
         lda #APUSTATUS_ENABLE_DMC
         sta APUSTATUS
-        ; [=27]
+        ; [=34]
 
         ; [+10] Advance IRQ one jump cycle.
         lda zp_irq_lo
         clc
         adc #3
         sta zp_irq_lo
-        ; [=37]
+        ; [=44]
 
-        ; [+20] Sleep.
-        SLEEP 20
-        ; [=57]
-
-        ; [+ 3] Restore X register.
-        ldx zp_temp_x
-        ; [=82]
+        ; [+24] Sleep.
+        SLEEP 24
+        ; [=68]
         
         ; [+5] Update DMC with P2 rate.
         lda #DMCFREQ_IRQ | DMCFREQ_RATE54
         sta DMCFREQ
-        ; [=87]
+        ; [=73]
 
         lda zp_temp_a
         rti
@@ -489,7 +481,9 @@ routine_frame_blank_start:
         sta APUSTATUS
         
         ; Advance IRQ trampoline
-        lda #lo(routine_irq_frame_blank_split_1)
+        lda zp_irq_lo
+        clc
+        adc #3
         sta zp_irq_lo
         
         ldx zp_temp_x
@@ -513,7 +507,9 @@ routine_frame_blank_split_1:
         sta APUSTATUS
 
         ; Advance IRQ trampoline
-        lda #lo(routine_irq_frame_blank_split_2)
+        lda zp_irq_lo
+        clc
+        adc #3
         sta zp_irq_lo
 
         ldx zp_temp_x
@@ -541,7 +537,9 @@ routine_frame_blank_split_2:
         jsr routine_read_joypad
 
         ; Advance IRQ trampoline
-        lda #lo(routine_irq_frame_end)
+        lda zp_irq_lo
+        clc
+        adc #3
         sta zp_irq_lo
 
         ldx zp_temp_x
