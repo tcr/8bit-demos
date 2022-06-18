@@ -143,6 +143,7 @@ zp_04 equ $04
 zp_irq_jmp equ $05
 zp_irq_lo equ $06
 zp_irq_hi equ $07
+
 zp_temp_a equ $08
 zp_09 equ $09
 zp_temp_x equ $0a
@@ -318,12 +319,12 @@ reset:
         sta PPUCTRL
 
     .setup_dmc:
-        ; Store "jmp $8300" into ZP.
-        lda #$4C
+        ; Store IRQ trampoline "jmp (table_irq_0)" into ZP.
+        lda #$6C
         sta zp_irq_jmp
-        lda #lo(routine_irq)
+        lda #lo(table_irq_0)
         sta zp_irq_lo
-        lda #hi(routine_irq)
+        lda #hi(table_irq_0)
         sta zp_irq_hi
 
         ; Setup initial DMC.
@@ -439,7 +440,7 @@ routine_update_frame_from_joypad:
 
 ; ------ irq rows -------
 
-IRQ_ADVANCE = 3
+IRQ_ADVANCE = 4
 
     ; Expect to be called with DMC P0 = 54.
     ; (IRQ can be called up to 22 CPU cycles late according to Mesen.)
@@ -691,7 +692,7 @@ routine_frame_end:
         ; [=34]
 
         ; [+ 5] Reset IRQ trampoline
-        lda #lo(routine_irq)
+        lda #lo(table_irq_0)
         sta zp_irq_lo
         ; [=29]
 
@@ -714,21 +715,132 @@ routine_frame_end:
 
 ; --------DMC frequencies--------
 
+d8 macro
+        byt ALLARGS
+    endm
 
-dw macro reg
+d16 macro reg
     if      "REG"<>""
         byt    lo(reg), hi(reg)
         shift
-        pushlist ALLARGS
+        d16 ALLARGS
     endif
     endm
 
 ; Frequencies to use for each frame index.
 
-example_dma:
-        dw irq_row_light   - 4
-        byt DMCFREQ_IRQ_RATE72, DMCFREQ_IRQ_RATE54, 0, 0, 0, 0
+        align 256
 
+IRQ_STEP macro ADDRESS
+        align 4
+        d16 ADDRESS
+    endm
+
+MACRO_IRQ_TABLE macro
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+        IRQ_STEP irq_row_medium  - 0
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+        IRQ_STEP irq_row_medium  - 0
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+        IRQ_STEP irq_row_medium  - 0
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+        IRQ_STEP irq_row_medium  - 0
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+        IRQ_STEP irq_row_medium  - 0
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+        IRQ_STEP irq_row_medium  - 0
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+        IRQ_STEP irq_row_medium  - 0
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+        ; skip medium
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+        IRQ_STEP irq_row_medium  - 0
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+        IRQ_STEP irq_row_medium  - 0
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+        IRQ_STEP irq_row_medium  - 0
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+        IRQ_STEP irq_row_medium  - 0
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+        IRQ_STEP irq_row_medium  - 0
+        IRQ_STEP irq_row_light   - 4
+        IRQ_STEP irq_row_dark    - 0
+
+        IRQ_STEP routine_frame_blank_start
+        IRQ_STEP routine_frame_blank_split_1
+        IRQ_STEP routine_frame_blank_split_2
+        IRQ_STEP routine_frame_end
+    endm
+
+        align 256
+table_irq_0:
+        MACRO_IRQ_TABLE
+
+; table_irq_end:
+;         align 256
+;         MACRO_IRQ_TABLE 1
+
+        ; align 8
+        ; d16 irq_row_light   - 4
+        ; d8 DMCFREQ_IRQ_RATE84, DMCFREQ_IRQ_RATE54
+
+        ; align 8
+        ; d16 irq_row_dark   - 4
+        ; d8 DMCFREQ_IRQ_RATE72, DMCFREQ_IRQ_RATE54
+
+        ; align 8
+        ; d16 routine_frame_blank_start
+        ; d8 DMCFREQ_IRQ_RATE428, 0
+        ; d8 0, PPUMASK_COMMON | PPUMASK_GREYSCALE
+        ; d16 PPUMASK
+
+        ; align 8
+        ; d16 routine_frame_blank_split_1
+        ; d8 DMCFREQ_IRQ_RATE214
+
+        ; align 8
+        ; d16 routine_frame_blank_split_2
+        ; d8 DMCFREQ_IRQ_RATE54, 0
+        ; d16 routine_read_joypad
+
+        ; align 8
+        ; d16 routine_frame_end
+        ; d8 DMCFREQ_IRQ_RATE190, DMCFREQ_IRQ_RATE54
+        ; d16 routine_update_frame_from_joypad
+
+
+        align 256
 
 ; * 8
 table_frequencies_0:
@@ -786,80 +898,6 @@ table_frame_offset:
         byt $FF, $00, $01, $02
         ; 4: down, 5: up
         byt $FF, $01
-
-
-; ----------------
-
-    ; IRQ trampoline routine must be aligned to a page boundary,
-    ; because the zero page trampoline only ever rewrites the lower byte.
-    align 256
-
-routine_irq:
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-        jmp irq_row_medium  - 0
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-        jmp irq_row_medium  - 0
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-        jmp irq_row_medium  - 0
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-        jmp irq_row_medium  - 0
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-        jmp irq_row_medium  - 0
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-        jmp irq_row_medium  - 0
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-        jmp irq_row_medium  - 0
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-        ; skip medium
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-        jmp irq_row_medium  - 0
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-        jmp irq_row_medium  - 0
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-        jmp irq_row_medium  - 0
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-        jmp irq_row_medium  - 0
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-        jmp irq_row_medium  - 0
-        jmp irq_row_light   - 4
-        jmp irq_row_dark    - 0
-
-        jmp routine_frame_blank_start
-        jmp routine_frame_blank_split_1
-        jmp routine_frame_blank_split_2
-        jmp routine_frame_end
-        rts
 
 
 ; --------sub start--------
