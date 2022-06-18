@@ -49,7 +49,23 @@ DMCFREQ_RATE106 = $c
 DMCFREQ_RATE84 = $d
 DMCFREQ_RATE72 = $e
 DMCFREQ_RATE54 = $f
-; etc...
+; Convenience settings
+DMCFREQ_IRQ_RATE428 = DMCFREQ_IRQ | DMCFREQ_RATE428
+DMCFREQ_IRQ_RATE380 = DMCFREQ_IRQ | DMCFREQ_RATE380
+DMCFREQ_IRQ_RATE340 = DMCFREQ_IRQ | DMCFREQ_RATE340
+DMCFREQ_IRQ_RATE320 = DMCFREQ_IRQ | DMCFREQ_RATE320
+DMCFREQ_IRQ_RATE286 = DMCFREQ_IRQ | DMCFREQ_RATE286
+DMCFREQ_IRQ_RATE256 = DMCFREQ_IRQ | DMCFREQ_RATE256
+DMCFREQ_IRQ_RATE226 = DMCFREQ_IRQ | DMCFREQ_RATE226
+DMCFREQ_IRQ_RATE214 = DMCFREQ_IRQ | DMCFREQ_RATE214
+DMCFREQ_IRQ_RATE190 = DMCFREQ_IRQ | DMCFREQ_RATE190
+DMCFREQ_IRQ_RATE160 = DMCFREQ_IRQ | DMCFREQ_RATE160
+DMCFREQ_IRQ_RATE142 = DMCFREQ_IRQ | DMCFREQ_RATE142
+DMCFREQ_IRQ_RATE128 = DMCFREQ_IRQ | DMCFREQ_RATE128
+DMCFREQ_IRQ_RATE106 = DMCFREQ_IRQ | DMCFREQ_RATE106
+DMCFREQ_IRQ_RATE84 = DMCFREQ_IRQ | DMCFREQ_RATE84
+DMCFREQ_IRQ_RATE72 = DMCFREQ_IRQ | DMCFREQ_RATE72
+DMCFREQ_IRQ_RATE54 = DMCFREQ_IRQ | DMCFREQ_RATE54
 
 DMCADDR equ $4012
 DMCLEN equ $4013
@@ -314,7 +330,7 @@ reset:
         SETMEM_DMCADDRESS DMC_SAMPLE_ADDR
         lda #0
         sta DMCLEN
-        lda #DMCFREQ_IRQ | DMCFREQ_RATE54
+        lda #DMCFREQ_IRQ_RATE54
         sta DMCFREQ
         ; Due to a hardware quirk, we need to write the sample length three times in a row
         ; so as not to trigger an immediate IRQ. See https://www.nesdev.org/wiki/APU_DMC
@@ -435,7 +451,7 @@ irq_row_medium:
         ; [= 3]
 
         ; [+ 6] Update DMC with P1 rate.
-        lda #DMCFREQ_IRQ | DMCFREQ_RATE72
+        lda #DMCFREQ_IRQ_RATE72
         sta DMCFREQ
         ; [= 9]
 
@@ -461,7 +477,7 @@ irq_row_medium:
         ; [+24] Sleep.
         ; SLEEP 24
         ; [+5] After 54 (P0) cycles, update DMC with P2 rate.
-        lda #DMCFREQ_IRQ | DMCFREQ_RATE54
+        lda #DMCFREQ_IRQ_RATE54
         sta DMCFREQ
         ; [=63]
 
@@ -479,7 +495,7 @@ irq_row_dark:
         ; [= 3]
 
         ; [+ 6] Update DMC with P1 rate.
-        lda #DMCFREQ_IRQ | DMCFREQ_RATE72
+        lda #DMCFREQ_IRQ_RATE72
         sta DMCFREQ
         ; [= 9]
 
@@ -505,7 +521,7 @@ irq_row_dark:
         ; [+24] Sleep.
         ; SLEEP 24
         ; [+5] After 54 (P0) cycles, update DMC with P2 rate.
-        lda #DMCFREQ_IRQ | DMCFREQ_RATE54
+        lda #DMCFREQ_IRQ_RATE54
         sta DMCFREQ
         ; [=63]
 
@@ -524,7 +540,7 @@ irq_row_light:
         ; [= 3]
 
         ; [+ 6] Update DMC with P1 rate.
-        lda #DMCFREQ_IRQ | DMCFREQ_RATE84
+        lda #DMCFREQ_IRQ_RATE84
         sta DMCFREQ
         ; [= 9]
 
@@ -550,7 +566,7 @@ irq_row_light:
         ; [+24] Sleep.
         ; SLEEP 24
         ; [+ 5] After 54 (P0) cycles, update DMC with P2 rate.
-        lda #DMCFREQ_IRQ | DMCFREQ_RATE54
+        lda #DMCFREQ_IRQ_RATE54
         sta DMCFREQ
         ; [=63]
 
@@ -702,53 +718,53 @@ routine_frame_end:
 
 ; * 8
 table_frequencies_0:
-        byt DMCFREQ_IRQ | DMCFREQ_RATE428
-        byt DMCFREQ_IRQ | DMCFREQ_RATE380
-        byt DMCFREQ_IRQ | DMCFREQ_RATE428
-        byt DMCFREQ_IRQ | DMCFREQ_RATE428
+        byt DMCFREQ_IRQ_RATE428
+        byt DMCFREQ_IRQ_RATE380
+        byt DMCFREQ_IRQ_RATE428
+        byt DMCFREQ_IRQ_RATE428
 
-        byt DMCFREQ_IRQ | DMCFREQ_RATE428
-        byt DMCFREQ_IRQ | DMCFREQ_RATE428
+        byt DMCFREQ_IRQ_RATE428
+        byt DMCFREQ_IRQ_RATE428
 
 ; * 8
 table_frequencies_1:
-        byt DMCFREQ_IRQ | DMCFREQ_RATE214
-        byt DMCFREQ_IRQ | DMCFREQ_RATE226
-        byt DMCFREQ_IRQ | DMCFREQ_RATE214
-        byt DMCFREQ_IRQ | DMCFREQ_RATE214
+        byt DMCFREQ_IRQ_RATE214
+        byt DMCFREQ_IRQ_RATE226
+        byt DMCFREQ_IRQ_RATE214
+        byt DMCFREQ_IRQ_RATE214
 
-        byt DMCFREQ_IRQ | DMCFREQ_RATE214
-        byt DMCFREQ_IRQ | DMCFREQ_RATE190
+        byt DMCFREQ_IRQ_RATE214
+        byt DMCFREQ_IRQ_RATE190
 
 ; * 8
 table_frequencies_2:
-        byt DMCFREQ_IRQ | DMCFREQ_RATE54
-        byt DMCFREQ_IRQ | DMCFREQ_RATE106
-        byt DMCFREQ_IRQ | DMCFREQ_RATE54
-        byt DMCFREQ_IRQ | DMCFREQ_RATE72
+        byt DMCFREQ_IRQ_RATE54
+        byt DMCFREQ_IRQ_RATE106
+        byt DMCFREQ_IRQ_RATE54
+        byt DMCFREQ_IRQ_RATE72
 
-        byt DMCFREQ_IRQ | DMCFREQ_RATE54
-        byt DMCFREQ_IRQ | DMCFREQ_RATE72
+        byt DMCFREQ_IRQ_RATE54
+        byt DMCFREQ_IRQ_RATE72
 
 ; * 1
 table_frequencies_3:
-        byt DMCFREQ_IRQ | DMCFREQ_RATE190
-        byt DMCFREQ_IRQ | DMCFREQ_RATE72
-        byt DMCFREQ_IRQ | DMCFREQ_RATE190
-        byt DMCFREQ_IRQ | DMCFREQ_RATE54
+        byt DMCFREQ_IRQ_RATE190
+        byt DMCFREQ_IRQ_RATE72
+        byt DMCFREQ_IRQ_RATE190
+        byt DMCFREQ_IRQ_RATE54
 
-        byt DMCFREQ_IRQ | DMCFREQ_RATE214
-        byt DMCFREQ_IRQ | DMCFREQ_RATE160
+        byt DMCFREQ_IRQ_RATE214
+        byt DMCFREQ_IRQ_RATE160
 
 ; * 8
 table_frequencies_4:
-        byt DMCFREQ_IRQ | DMCFREQ_RATE54
-        byt DMCFREQ_IRQ | DMCFREQ_RATE54
-        byt DMCFREQ_IRQ | DMCFREQ_RATE54
-        byt DMCFREQ_IRQ | DMCFREQ_RATE54
+        byt DMCFREQ_IRQ_RATE54
+        byt DMCFREQ_IRQ_RATE54
+        byt DMCFREQ_IRQ_RATE54
+        byt DMCFREQ_IRQ_RATE54
 
-        byt DMCFREQ_IRQ | DMCFREQ_RATE72
-        byt DMCFREQ_IRQ | DMCFREQ_RATE54
+        byt DMCFREQ_IRQ_RATE72
+        byt DMCFREQ_IRQ_RATE54
 
 table_frame_offset:
         ; Frame loop 0-3, also
