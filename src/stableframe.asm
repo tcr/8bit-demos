@@ -133,28 +133,19 @@ SLEEP macro ARGCYCLES
 
 DMC_SAMPLE_ADDR = $ffc0
 
-; Unused/unknown
-zp_00 equ $00
-zp_01 equ $01
-zp_02 equ $02
-zp_03 equ $03
-zp_04 equ $04
+    org $0
 
-zp_irq_jmp equ $05
-zp_irq_lo equ $06
-zp_irq_hi equ $07
+zp_irq_jmp byt ?
+zp_irq_lo byt ?
+zp_irq_hi byt ?
 
-zp_temp_a equ $08
-zp_temp_y equ $09
-zp_temp_x equ $0a
-zp_0b equ $0b
-zp_0c equ $0c
-zp_frame_index equ $0d
-zp_0e equ $0e
-zp_0f equ $0f
+zp_temp_a byt ?
+zp_temp_y byt ?
+zp_temp_x byt ?
+zp_frame_index byt ?
 
-zp_joypad_p0 equ $10
-zp_joypad_p1 equ $11
+zp_joypad_p0 byt ?
+zp_joypad_p1 byt ?
 
 
 PPUMASK_COMMON = PPUMASK_BACKGROUNDENABLE | PPUMASK_SPRITEENABLE
