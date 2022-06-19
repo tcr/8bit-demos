@@ -145,7 +145,7 @@ zp_irq_lo equ $06
 zp_irq_hi equ $07
 
 zp_temp_a equ $08
-zp_ equ $09
+zp_temp_y equ $09
 zp_temp_x equ $0a
 zp_0b equ $0b
 zp_0c equ $0c
@@ -155,13 +155,6 @@ zp_0f equ $0f
 
 zp_joypad_p0 equ $10
 zp_joypad_p1 equ $11
-
-zp_irq_temp_a equ $12
-zp_irq_temp_y equ $13
-zp_irq_pos_y equ $14
-
-zp_irq_ptr_lo equ $15
-zp_irq_ptr_hi equ $16
 
 
 PPUMASK_COMMON = PPUMASK_BACKGROUNDENABLE | PPUMASK_SPRITEENABLE
@@ -300,37 +293,20 @@ reset:
         sta PPUSCROLL
         lda #$00
         sta PPUSCROLL
-
+        ; Setup PPUMASK.
         lda #PPUMASK_COMMON
         sta PPUMASK
-
-        ; Unused write (???)
-        lda #$40
-        sta zp_00
-
-        ; Wait a long time (???)
-        ldx #10
-        ldy #0
-    -:
-        dey
-        bne -
-        dex
-        bne -
-
         ; Switch backgrounnd nametable to $2400.
         lda #PPUCTRL_NAMETABLE2400 | PPUCTRL_SPRITEPATTERN | PPUCTRL_SPRITE16PXMODE | PPUCTRL_BACKGROUNDPATTERN
         sta PPUCTRL
 
     .setup_dmc:
-        lda #0
-        sta zp_irq_pos_y
-
-        ; Store IRQ trampoline "jmp (table_irq_0)" into ZP.
+        ; Store IRQ trampoline "jmp (table_irq)" into ZP.
         lda #$6C
         sta zp_irq_jmp
-        lda #lo(table_irq_0)
+        lda #lo(table_irq)
         sta zp_irq_lo
-        lda #hi(table_irq_0)
+        lda #hi(table_irq)
         sta zp_irq_hi
 
         ; Setup initial DMC.
@@ -446,280 +422,12 @@ routine_update_frame_from_joypad:
 
 ; ------ irq rows -------
 
-IRQ_ADVANCE = 4
-
-    ; Expect to be called with DMC P0 = 54.
-    ; (IRQ can be called up to 22 CPU cycles late according to Mesen.)
-    ; We change the DMC rate to P1 immediately, and at least P0 cycles to change to P2.
-        JUMP_SLIDE 8
-irq_row_medium:
-        ; [+ 3] Preserve registers.
-        sta zp_temp_a
-        ; [= 3]
-
-        ; [+ 6] Update DMC with P1 rate.
-        lda #DMCFREQ_IRQ_RATE72
-        sta DMCFREQ
-        ; [= 9]
-
-        ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
-        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
-        sta PPUMASK
-        lda #PPUMASK_COMMON | PPUMASK_EMPHRED
-        sta PPUMASK
-        ; [=19]
-
-        ; [+5] Acknowledge IRQ.
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-        ; [=24]
-
-        ; [+10] Advance IRQ one jump cycle.
-        lda zp_irq_lo
-        clc
-        adc #IRQ_ADVANCE
-        sta zp_irq_lo
-        ; [=34]
-
-        ; [+24] Sleep.
-        ; SLEEP 24
-        ; [+5] After 54 (P0) cycles, update DMC with P2 rate.
-        lda #DMCFREQ_IRQ_RATE54
-        sta DMCFREQ
-        ; [=63]
-
-        ; Restore registers and return.
-        lda zp_temp_a
-        rti
-
-    ; Expect to be called with DMC P0 = 54.
-    ; (IRQ can be called up to 22 CPU cycles late according to Mesen.)
-    ; We change the DMC rate to P1 immediately, and at least P0 cycles to change to P2.
-        JUMP_SLIDE 8
-irq_row_dark:
-        ; [+ 3] Preserve registers.
-        sta zp_temp_a
-        ; [= 3]
-
-        ; [+ 6] Update DMC with P1 rate.
-        lda #DMCFREQ_IRQ_RATE72
-        sta DMCFREQ
-        ; [= 9]
-
-        ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
-        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
-        sta PPUMASK
-        lda #PPUMASK_COMMON | PPUMASK_EMPHRED | PPUMASK_EMPHGREEN
-        sta PPUMASK
-        ; [=19]
-
-        ; [+ 5] Acknowledge IRQ.
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-        ; [=24]
-
-        ; [+10] Advance IRQ one jump cycle.
-        lda zp_irq_lo
-        clc
-        adc #IRQ_ADVANCE
-        sta zp_irq_lo
-        ; [=34]
-
-        ; [+24] Sleep.
-        ; SLEEP 24
-        ; [+5] After 54 (P0) cycles, update DMC with P2 rate.
-        lda #DMCFREQ_IRQ_RATE54
-        sta DMCFREQ
-        ; [=63]
-
-        ; Restore registers and return.
-        lda zp_temp_a
-        rti
-
-
-    ; Expect to be called with DMC P0 = 54.
-    ; (IRQ can be called up to 22 CPU cycles late according to Mesen.)
-    ; We change the DMC rate to P1 immediately, and at least P0 cycles to change to P2.
-        JUMP_SLIDE 8
-irq_row_light:
-        ; [+ 3] Preserve registers.
-        sta zp_temp_a
-        ; [= 3]
-
-        ; [+ 6] Update DMC with P1 rate.
-        lda #DMCFREQ_IRQ_RATE84
-        sta DMCFREQ
-        ; [= 9]
-
-        ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
-        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
-        sta PPUMASK
-        lda #PPUMASK_COMMON | PPUMASK_EMPHGREEN
-        sta PPUMASK
-        ; [=19]
-
-        ; [+ 5] Acknowledge IRQ.
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-        ; [=24]
-
-        ; [+10] Advance IRQ one jump cycle.
-        lda zp_irq_lo
-        clc
-        adc #IRQ_ADVANCE
-        sta zp_irq_lo
-        ; [=34]
-
-        ; [+24] Sleep.
-        ; SLEEP 24
-        ; [+ 5] After 54 (P0) cycles, update DMC with P2 rate.
-        lda #DMCFREQ_IRQ_RATE54
-        sta DMCFREQ
-        ; [=63]
-
-        ; Restore registers and return.
-        lda zp_temp_a
-        rti
-
-
-; -------end of frame irq---------
-
-routine_frame_blank_start:
-        ; Preserve registers.
-        sta zp_temp_a
-        stx zp_temp_x
-
-        ; Update DMC P1 and P2 with lookup0.
-        ldx zp_frame_index
-        lda table_frequencies_0,x
-        sta DMCFREQ
-
-        ; Change PPUMASK to greyscale during the blanking period.
-        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
-        sta PPUMASK
-        
-        ; Acknowledge IRQ.
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-        
-        ; Advance IRQ trampoline
-        lda zp_irq_lo
-        clc
-        adc #IRQ_ADVANCE
-        sta zp_irq_lo
-        
-        ; Restore registers and return.
-        ldx zp_temp_x
-        lda zp_temp_a
-        rti
-
-
-routine_frame_blank_split_1:
-        ; Preserve registers.
-        sta zp_temp_a
-        stx zp_temp_x
-
-        ; Update DMC P1 and P2 with lookup1.
-        ldx zp_frame_index
-        lda table_frequencies_1,x
-        sta DMCFREQ
-
-        ; Do any color updates if needed.
-
-        ; Acknowledge IRQ.
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-
-        ; Advance IRQ trampoline
-        lda zp_irq_lo
-        clc
-        adc #IRQ_ADVANCE
-        sta zp_irq_lo
-
-        ; Restore registers and return.
-        ldx zp_temp_x
-        lda zp_temp_a
-        rti
-
-
-routine_frame_blank_split_2:
-        ; Preserve registers.
-        sta zp_temp_a
-        stx zp_temp_x
-
-        ; Update DMC P1 and P2 with lookup2.
-        ldx zp_frame_index
-        lda table_frequencies_2,x
-        sta DMCFREQ
-
-        ; Do any color updates if needed.
-
-        ; Acknowledge IRQ.
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-
-        ; Advance IRQ trampoline
-        lda zp_irq_lo
-        clc
-        adc #IRQ_ADVANCE
-        sta zp_irq_lo
-
-        ; Read joypads (CPU cycles in this subroutine are not bounded).
-        jsr routine_read_joypad
-
-        ; Restore registers and return.
-        ldx zp_temp_x
-        lda zp_temp_a
-        rti
-
-
-routine_frame_end:
-        ; DMC P0=lookup2
-
-        ; [+ 6] Preserve registers.
-        sta zp_temp_a
-        stx zp_temp_x
-        ; [= 6]
-
-        ; [+11] Update DMC P1 with lookup3.
-        ldx zp_frame_index
-        lda table_frequencies_3,x
-        sta DMCFREQ
-        ; [=17]
-
-        ; [+ 5] Restore PPUMASK to start showing colors after the blanking period.
-        lda #PPUMASK_COMMON | PPUMASK_EMPHBLUE | PPUMASK_EMPHGREEN
-        sta PPUMASK
-        ; [=22]
-
-        ; [+ 5] Acknowledge IRQ.
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-        ; [=34]
-
-        ; [+ 5] Reset IRQ trampoline
-        lda #lo(table_irq_0)
-        sta zp_irq_lo
-        ; [=29]
-
-        ; [+42]
-        SLEEP 82
-        ; [=76]
-
-        ; [+ 8] Update DMC P2 with lookup4.
-        lda table_frequencies_4,x
-        sta DMCFREQ
-        ; [=84]
-
-        jsr routine_update_frame_from_joypad
-
-        ; Restore registers and return.
-        ldx zp_temp_x
-        lda zp_temp_a
-        rti
+    include "irq_routines.asm"
 
 
 ; --------DMC frequencies--------
+
+    MACEXP_DFT  nomacro, noif
 
 d8 macro
         byt ALLARGS
@@ -733,192 +441,22 @@ d16 macro reg
     endif
     endm
 
-d16hi macro reg
-    if      "REG"<>""
-        byt    hi(reg)
-        shift
-        d16hi ALLARGS
-    endif
-    endm
-
-d16lo macro reg
-    if      "REG"<>""
-        byt    lo(reg)
-        shift
-        d16lo ALLARGS
-    endif
-    endm
-
-DPAIR set ""
-
-d16pair macro
-        if (DPAIR<>"hi") && (DPAIR<>"lo")
-            error "Expected dpair_hi or dpair_lo macro to be used, got \{DPAIR}"
-        elseif DPAIR=="hi"
-            d16hi ALLARGS
-        else
-            d16lo ALLARGS
-        endif
-    endm
-
-d8pair macro reglo, reghi
-        if (DPAIR<>"hi") && (DPAIR<>"lo")
-            error "Expected dpair_hi or dpair_lo macro to be used, got \{DPAIR}"
-        elseif DPAIR=="hi"
-            d8 reglo
-            shift
-            shift
-            d8pair ALLARGS
-        else
-            d8 reghi
-            shift
-            shift
-            d8pair ALLARGS
-        endif
-    endm
-
-dpair_hi macro
-DPAIR set "hi"
-    endm
-
-dpair_lo macro
-DPAIR set "lo"
-    endm
-
-dpair_end macro
-DPAIR set ""
-    endm
 
 ; Frequencies to use for each frame index.
 
         align 256
 
-IRQ_STEP macro ADDRESS
-        align 4
+IRQ_CALL macro ADDRESS, NEXTREG
         d16 ADDRESS
+        if "NEXTREG" <> ""
+            shift
+            d8 ALLARGS
+        endif
     endm
 
-
         align 256
-        dpair_lo
-table_irq_0:
-table_irq_lo:
+table_irq:
         include "irq_table.asm"
-        dpair_end
-
-        align 256
-        dpair_hi
-table_irq_hi:
-        include "irq_table.asm"
-        dpair_end
-
-
-; table_irq_end:
-;         align 256
-;         MACRO_IRQ_TABLE 1
-
-        ; align 8
-        ; d16 irq_row_light   - 4
-        ; d8 DMCFREQ_IRQ_RATE84, DMCFREQ_IRQ_RATE54
-
-        ; align 8
-        ; d16 irq_row_dark   - 4
-        ; d8 DMCFREQ_IRQ_RATE72, DMCFREQ_IRQ_RATE54
-
-        ; align 8
-        ; d16 routine_frame_blank_start
-        ; d8 DMCFREQ_IRQ_RATE428, 0
-        ; d8 0, PPUMASK_COMMON | PPUMASK_GREYSCALE
-        ; d16 PPUMASK
-
-        ; align 8
-        ; d16 routine_frame_blank_split_1
-        ; d8 DMCFREQ_IRQ_RATE214
-
-        ; align 8
-        ; d16 routine_frame_blank_split_2
-        ; d8 DMCFREQ_IRQ_RATE54, 0
-        ; d16 routine_read_joypad
-
-        ; align 8
-        ; d16 routine_frame_end
-        ; d8 DMCFREQ_IRQ_RATE190, DMCFREQ_IRQ_RATE54
-        ; d16 routine_update_frame_from_joypad
-
-
-        align 256
-
-; * 8
-table_frequencies_0:
-        byt DMCFREQ_IRQ_RATE428
-        byt DMCFREQ_IRQ_RATE380
-        byt DMCFREQ_IRQ_RATE428
-        byt DMCFREQ_IRQ_RATE428
-
-        byt DMCFREQ_IRQ_RATE428
-        byt DMCFREQ_IRQ_RATE428
-
-; * 8
-table_frequencies_1:
-        byt DMCFREQ_IRQ_RATE214
-        byt DMCFREQ_IRQ_RATE226
-        byt DMCFREQ_IRQ_RATE214
-        byt DMCFREQ_IRQ_RATE214
-
-        byt DMCFREQ_IRQ_RATE214
-        byt DMCFREQ_IRQ_RATE190
-
-; * 8
-table_frequencies_2:
-        byt DMCFREQ_IRQ_RATE54
-        byt DMCFREQ_IRQ_RATE106
-        byt DMCFREQ_IRQ_RATE54
-        byt DMCFREQ_IRQ_RATE72
-
-        byt DMCFREQ_IRQ_RATE54
-        byt DMCFREQ_IRQ_RATE72
-
-; * 1
-table_frequencies_3:
-        byt DMCFREQ_IRQ_RATE190
-        byt DMCFREQ_IRQ_RATE72
-        byt DMCFREQ_IRQ_RATE190
-        byt DMCFREQ_IRQ_RATE54
-
-        byt DMCFREQ_IRQ_RATE214
-        byt DMCFREQ_IRQ_RATE160
-
-; * 8
-table_frequencies_4:
-        byt DMCFREQ_IRQ_RATE54
-        byt DMCFREQ_IRQ_RATE54
-        byt DMCFREQ_IRQ_RATE54
-        byt DMCFREQ_IRQ_RATE54
-
-        byt DMCFREQ_IRQ_RATE72
-        byt DMCFREQ_IRQ_RATE54
-
-table_frame_offset:
-        ; Frame loop 0-3, also
-        ; 1: left, 2: right
-        byt $FF, $00, $01, $02
-        ; 4: down, 5: up
-        byt $FF, $01
-
-
-; --------irq routine--------
-
-irq:
-        sta zp_irq_temp_a
-        sty zp_irq_temp_y
-
-        ldy zp_irq_pos_y
-        lda table_irq_lo,y
-        sta zp_irq_ptr_lo
-        lda table_irq_hi,y
-        sta zp_irq_ptr_hi
-        jmp (zp_irq_ptr_lo)
-
 
 
 ; --------sub start--------
