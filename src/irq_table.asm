@@ -100,6 +100,8 @@ table_irq_rows:
         IRQ_CALL irq_dark_row  - 0, DMCFREQ_IRQ_RATE72
         IRQ_CALL irq_light_row - 0, DMCFREQ_IRQ_RATE72
         IRQ_CALL irq_dark_row  - 4, DMCFREQ_IRQ_RATE84
+
+        ; Terminating row.
         IRQ_CALL irq_last_row  - 0, DMCFREQ_IRQ_RATE72
 
 
