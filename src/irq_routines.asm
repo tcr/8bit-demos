@@ -23,9 +23,32 @@ IRQ_ADVANCE_LOOKUP macro BYCOUNT
     endm
 
 
-; -------irq frame routines---------
+; -------irq generic routines---------
 
-irq_blank_0:
+irq_set_rate:
+        ; Preserve registers.
+        IRQ_SAVE_REGISTERS
+
+        ; Update DMC with P1 and P2 rate.
+        ldy #2
+        lda (zp_irq_lo),y
+        sta DMCFREQ
+
+        ; Acknowledge IRQ.
+        lda #APUSTATUS_ENABLE_DMC
+        sta APUSTATUS
+
+        ; Advance IRQ trampoline
+        IRQ_ADVANCE_LOOKUP 3
+
+        ; Restore registers and return.
+        IRQ_RESTORE_REGISTERS
+        rti
+
+
+; -------irq blank routines---------
+
+irq_blank_enter:
         ; Preserve registers.
         IRQ_SAVE_REGISTERS
 
@@ -50,54 +73,7 @@ irq_blank_0:
         rti
 
 
-irq_set_rate:
-        ; Preserve registers.
-        IRQ_SAVE_REGISTERS
-
-        ; Update DMC with P1 and P2 rate.
-        ldy #2
-        lda (zp_irq_lo),y
-        sta DMCFREQ
-
-        ; Acknowledge IRQ.
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-
-        ; Advance IRQ trampoline
-        IRQ_ADVANCE_LOOKUP 3
-
-        ; Restore registers and return.
-        IRQ_RESTORE_REGISTERS
-        rti
-
-
-irq_blank_2:
-        ; Preserve registers.
-        IRQ_SAVE_REGISTERS
-
-        ; Update DMC with P1 and P2 rate.
-        ldy #2
-        lda (zp_irq_lo),y
-        sta DMCFREQ
-
-        ; Do any color updates if needed.
-
-        ; Read joypads (CPU cycles in this subroutine are not bounded).
-        jsr routine_read_joypad
-
-        ; Acknowledge IRQ.
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-
-        ; Advance IRQ trampoline
-        IRQ_ADVANCE_LOOKUP 3
-
-        ; Restore registers and return.
-        IRQ_RESTORE_REGISTERS
-        rti
-
-
-irq_blank_3:
+irq_blank_exit:
         ; DMC P0=lookup2
 
         ; [+ 6] Preserve registers.
@@ -125,6 +101,8 @@ irq_blank_3:
         sta DMCFREQ
         ; [=84]
 
+        ; Read the joypad, then update frame index based on it.
+        jsr routine_read_joypad
         ldy zp_frame_index
         jsr routine_update_frame_from_joypad
 
