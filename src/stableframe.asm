@@ -129,9 +129,7 @@ SLEEP macro ARGCYCLES
 
 
 
-; Game constants
-
-DMC_SAMPLE_ADDR = $ffc0
+; Game variables
 
     org $0
 
@@ -147,6 +145,10 @@ zp_frame_index byt ?
 zp_joypad_p0 byt ?
 zp_joypad_p1 byt ?
 
+
+; Game constants
+
+DMC_SAMPLE_ADDR = $ffc0
 
 PPUMASK_COMMON = PPUMASK_BACKGROUNDENABLE | PPUMASK_SPRITEENABLE
 
@@ -379,34 +381,34 @@ routine_read_joypad:
 
 routine_update_frame_from_joypad:
         ; Calculate frame adjustment based off joypad values.
-        lda table_frame_offset,x
-        tax
+        lda table_frame_offset,y
+        tay
         ; If we have a positive offset, use it. Otherwise, evaluate joypad.
         bpl +
 
         ; Start checking joypad for P0.
         lda zp_joypad_p0
         ; BUTTON_RIGHT
-        ldx #$01
+        ldy #$01
         asl a
         bcs +
         ; BUTTON_LEFT
-        ldx #$00
+        ldy #$00
         asl a
         bcs +
         ; BUTTON_DOWN
-        ldx #$04
+        ldy #$04
         asl a
         bcs +
         ; BUTTON_UP
-        ldx #$05
+        ldy #$05
         asl a
         bcs +
 
         ; No directional buttons pressed, so restart the frame loop at x = 3.
-        ldx #$03
+        ldy #$03
     +:
-        stx zp_frame_index
+        sty zp_frame_index
 
         rts
 

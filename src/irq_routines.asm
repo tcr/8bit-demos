@@ -125,7 +125,11 @@ irq_last_row:
         lda #DMCFREQ_IRQ_RATE54
         sta DMCFREQ
 
-        lda #lo(table_irq)
+        lda zp_frame_index
+        asl
+        asl
+        asl
+        asl
         sta zp_irq_lo
         ; [=63]
 
@@ -137,14 +141,14 @@ irq_last_row:
 
 ; -------end of frame irq routines---------
 
-routine_frame_blank_start:
+irq_blank_0:
         ; Preserve registers.
         sta zp_temp_a
-        stx zp_temp_x
+        sty zp_temp_y
 
-        ; Update DMC P1 and P2 with lookup0.
-        ldx zp_frame_index
-        lda table_frequencies_0,x
+        ; Update DMC with P1 and P2 rate.
+        ldy #2
+        lda (zp_irq_lo),y
         sta DMCFREQ
 
         ; Change PPUMASK to greyscale during the blanking period.
@@ -161,19 +165,19 @@ routine_frame_blank_start:
         inc zp_irq_lo
         
         ; Restore registers and return.
-        ldx zp_temp_x
+        ldy zp_temp_y
         lda zp_temp_a
         rti
 
 
-routine_frame_blank_split_1:
+irq_blank_1:
         ; Preserve registers.
         sta zp_temp_a
-        stx zp_temp_x
+        sty zp_temp_y
 
-        ; Update DMC P1 and P2 with lookup1.
-        ldx zp_frame_index
-        lda table_frequencies_1,x
+        ; Update DMC with P1 and P2 rate.
+        ldy #2
+        lda (zp_irq_lo),y
         sta DMCFREQ
 
         ; Do any color updates if needed.
@@ -188,52 +192,52 @@ routine_frame_blank_split_1:
         inc zp_irq_lo
 
         ; Restore registers and return.
-        ldx zp_temp_x
+        ldy zp_temp_y
         lda zp_temp_a
         rti
 
 
-routine_frame_blank_split_2:
+irq_blank_2:
         ; Preserve registers.
         sta zp_temp_a
-        stx zp_temp_x
+        sty zp_temp_y
 
-        ; Update DMC P1 and P2 with lookup2.
-        ldx zp_frame_index
-        lda table_frequencies_2,x
+        ; Update DMC with P1 and P2 rate.
+        ldy #2
+        lda (zp_irq_lo),y
         sta DMCFREQ
 
         ; Do any color updates if needed.
-
-        ; Acknowledge IRQ.
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-
-        ; Advance IRQ trampoline
-        inc zp_irq_lo
-        inc zp_irq_lo
-        inc zp_irq_lo
 
         ; Read joypads (CPU cycles in this subroutine are not bounded).
         jsr routine_read_joypad
 
+        ; Acknowledge IRQ.
+        lda #APUSTATUS_ENABLE_DMC
+        sta APUSTATUS
+
+        ; Advance IRQ trampoline
+        inc zp_irq_lo
+        inc zp_irq_lo
+        inc zp_irq_lo
+
         ; Restore registers and return.
-        ldx zp_temp_x
+        ldy zp_temp_y
         lda zp_temp_a
         rti
 
 
-routine_frame_end:
+irq_blank_3:
         ; DMC P0=lookup2
 
         ; [+ 6] Preserve registers.
         sta zp_temp_a
-        stx zp_temp_x
+        sty zp_temp_y
         ; [= 6]
 
         ; [+11] Update DMC P1 with lookup3.
-        ldx zp_frame_index
-        lda table_frequencies_3,x
+        ldy #2
+        lda (zp_irq_lo),y
         sta DMCFREQ
         ; [=17]
 
@@ -241,6 +245,19 @@ routine_frame_end:
         lda #PPUMASK_COMMON | PPUMASK_EMPHBLUE | PPUMASK_EMPHGREEN
         sta PPUMASK
         ; [=22]
+
+        ; [+42]
+        SLEEP 82
+        ; [=76]
+
+        ; [+ 8] Update DMC P2 with lookup4.
+        iny
+        lda (zp_irq_lo),y
+        sta DMCFREQ
+        ; [=84]
+
+        ldy zp_frame_index
+        jsr routine_update_frame_from_joypad
 
         ; [+ 5] Acknowledge IRQ.
         lda #APUSTATUS_ENABLE_DMC
@@ -252,18 +269,7 @@ routine_frame_end:
         sta zp_irq_lo
         ; [=29]
 
-        ; [+42]
-        SLEEP 82
-        ; [=76]
-
-        ; [+ 8] Update DMC P2 with lookup4.
-        lda table_frequencies_4,x
-        sta DMCFREQ
-        ; [=84]
-
-        jsr routine_update_frame_from_joypad
-
         ; Restore registers and return.
-        ldx zp_temp_x
+        ldy zp_temp_y
         lda zp_temp_a
         rti
