@@ -240,9 +240,9 @@ reset:
 
     .draw_specific_tiles:
         ; Set some specific tiles in nametable $2000.
-        lda #hi(VRAM_NAMETABLE0)
+        lda #hi(VRAM_NAMETABLE0 + (32 * 4))
         sta PPUADDR
-        lda #lo(VRAM_NAMETABLE0)
+        lda #lo(VRAM_NAMETABLE0 + (32 * 4))
         sta PPUADDR
         lda #5
         sta PPUDATA
@@ -251,9 +251,9 @@ reset:
         lda #7
         sta PPUDATA
 
-        lda #hi(VRAM_NAMETABLE0+32)
+        lda #hi(VRAM_NAMETABLE0 + (32 * 5))
         sta PPUADDR
-        lda #lo(VRAM_NAMETABLE0+32)
+        lda #lo(VRAM_NAMETABLE0 + (32 * 5))
         sta PPUADDR
         lda #5+16
         sta PPUDATA
@@ -262,9 +262,9 @@ reset:
         lda #7+16
         sta PPUDATA
 
-        lda #hi(VRAM_NAMETABLE0+64)
+        lda #hi(VRAM_NAMETABLE0 + (32 * 6))
         sta PPUADDR
-        lda #lo(VRAM_NAMETABLE0+64)
+        lda #lo(VRAM_NAMETABLE0 + (32 * 6))
         sta PPUADDR
         lda #5+32
         sta PPUDATA

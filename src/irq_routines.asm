@@ -1,150 +1,33 @@
-
-        ; Expect to be called with DMC P0 = 54.
-        ; (IRQ can be called up to 22 CPU cycles late according to Mesen.)
-        ; We change the DMC rate to P1 immediately, and at least P0 cycles to change to P2.
-        JUMP_SLIDE 8
-irq_light_row:
         ; [+ 3] Preserve registers.
+IRQ_SAVE_REGISTERS macro
         sta zp_temp_a
         sty zp_temp_y
-        ; [= 3]
+    endm
 
-        ; [+10] Update DMC with P1 rate.
-        ldy #2
-        lda (zp_irq_lo),y
-        sta DMCFREQ
-        ; [= 9]
-
-        ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
-        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
-        sta PPUMASK
-        lda #PPUMASK_COMMON | PPUMASK_EMPHGREEN
-        sta PPUMASK
-        ; [=19]
-
-        ; [+ 5] Acknowledge IRQ.
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-        ; [=24]
-
-        ; [+24] Sleep.
-        ; SLEEP 24
-        ; [+ 5] After 54 (P0) cycles, update DMC with P2 rate.
-        lda #DMCFREQ_IRQ_RATE54
-        sta DMCFREQ
-
-        lda zp_irq_lo
-        clc
-        adc #3
-        sta zp_irq_lo
-        ; [=63]
-
-        ; Restore registers and return.
+IRQ_RESTORE_REGISTERS macro
         ldy zp_temp_y
         lda zp_temp_a
-        rti
+    endm
+
+IRQ_ADVANCE_LOOKUP macro BYCOUNT
+        if BYCOUNT < 3
+            rept BYCOUNT
+                inc zp_irq_lo
+            endm
+        else
+            lda zp_irq_lo
+            clc
+            adc #BYCOUNT
+            sta zp_irq_lo
+        endif
+    endm
 
 
-        ; Expect to be called with DMC P0 = 54.
-        ; (IRQ can be called up to 22 CPU cycles late according to Mesen.)
-        ; We change the DMC rate to P1 immediately, and at least P0 cycles to change to P2.
-        JUMP_SLIDE 8
-irq_dark_row:
-        ; [+ 3] Preserve registers.
-        sta zp_temp_a
-        sty zp_temp_y
-        ; [= 3]
-
-        ; [+10] Update DMC with P1 rate.
-        ldy #2
-        lda (zp_irq_lo),y
-        sta DMCFREQ
-        ; [= 9]
-
-        ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
-        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
-        sta PPUMASK
-        lda #PPUMASK_COMMON | PPUMASK_EMPHRED | PPUMASK_EMPHGREEN
-        sta PPUMASK
-        ; [=19]
-
-        ; [+ 5] Acknowledge IRQ.
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-        ; [=24]
-
-        ; [+24] Sleep.
-        ; SLEEP 24
-        ; [+ 5] After 54 (P0) cycles, update DMC with P2 rate.
-        lda #DMCFREQ_IRQ_RATE54
-        sta DMCFREQ
-
-        lda zp_irq_lo
-        clc
-        adc #3
-        sta zp_irq_lo
-        ; [=63]
-
-        ; Restore registers and return.
-        ldy zp_temp_y
-        lda zp_temp_a
-        rti
-
-
-        ; Expect to be called with DMC P0 = 54.
-        ; (IRQ can be called up to 22 CPU cycles late according to Mesen.)
-        ; We change the DMC rate to P1 immediately, and at least P0 cycles to change to P2.
-        JUMP_SLIDE 8
-irq_last_row:
-        ; [+ 3] Preserve registers.
-        sta zp_temp_a
-        sty zp_temp_y
-        ; [= 3]
-
-        ; [+10] Update DMC with P1 rate.
-        ldy #2
-        lda (zp_irq_lo),y
-        sta DMCFREQ
-        ; [= 9]
-
-        ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
-        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
-        sta PPUMASK
-        lda #PPUMASK_COMMON | PPUMASK_EMPHRED
-        sta PPUMASK
-        ; [=19]
-
-        ; [+ 5] Acknowledge IRQ.
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-        ; [=24]
-
-        ; [+24] Sleep.
-        ; SLEEP 24
-        ; [+ 5] After 54 (P0) cycles, update DMC with P2 rate.
-        lda #DMCFREQ_IRQ_RATE54
-        sta DMCFREQ
-
-        lda zp_frame_index
-        asl
-        asl
-        asl
-        asl
-        sta zp_irq_lo
-        ; [=63]
-
-        ; Restore registers and return.
-        ldy zp_temp_y
-        lda zp_temp_a
-        rti
-
-
-; -------end of frame irq routines---------
+; -------irq frame routines---------
 
 irq_blank_0:
         ; Preserve registers.
-        sta zp_temp_a
-        sty zp_temp_y
+        IRQ_SAVE_REGISTERS
 
         ; Update DMC with P1 and P2 rate.
         ldy #2
@@ -160,47 +43,37 @@ irq_blank_0:
         sta APUSTATUS
         
         ; Advance IRQ trampoline
-        inc zp_irq_lo
-        inc zp_irq_lo
-        inc zp_irq_lo
+        IRQ_ADVANCE_LOOKUP 3
         
         ; Restore registers and return.
-        ldy zp_temp_y
-        lda zp_temp_a
+        IRQ_RESTORE_REGISTERS
         rti
 
 
-irq_blank_1:
+irq_set_rate:
         ; Preserve registers.
-        sta zp_temp_a
-        sty zp_temp_y
+        IRQ_SAVE_REGISTERS
 
         ; Update DMC with P1 and P2 rate.
         ldy #2
         lda (zp_irq_lo),y
         sta DMCFREQ
 
-        ; Do any color updates if needed.
-
         ; Acknowledge IRQ.
         lda #APUSTATUS_ENABLE_DMC
         sta APUSTATUS
 
         ; Advance IRQ trampoline
-        inc zp_irq_lo
-        inc zp_irq_lo
-        inc zp_irq_lo
+        IRQ_ADVANCE_LOOKUP 3
 
         ; Restore registers and return.
-        ldy zp_temp_y
-        lda zp_temp_a
+        IRQ_RESTORE_REGISTERS
         rti
 
 
 irq_blank_2:
         ; Preserve registers.
-        sta zp_temp_a
-        sty zp_temp_y
+        IRQ_SAVE_REGISTERS
 
         ; Update DMC with P1 and P2 rate.
         ldy #2
@@ -217,13 +90,10 @@ irq_blank_2:
         sta APUSTATUS
 
         ; Advance IRQ trampoline
-        inc zp_irq_lo
-        inc zp_irq_lo
-        inc zp_irq_lo
+        IRQ_ADVANCE_LOOKUP 3
 
         ; Restore registers and return.
-        ldy zp_temp_y
-        lda zp_temp_a
+        IRQ_RESTORE_REGISTERS
         rti
 
 
@@ -231,8 +101,7 @@ irq_blank_3:
         ; DMC P0=lookup2
 
         ; [+ 6] Preserve registers.
-        sta zp_temp_a
-        sty zp_temp_y
+        IRQ_SAVE_REGISTERS
         ; [= 6]
 
         ; [+11] Update DMC P1 with lookup3.
@@ -264,12 +133,143 @@ irq_blank_3:
         sta APUSTATUS
         ; [=34]
 
-        ; [+ 5] Reset IRQ trampoline
+        ; Move IRQ trampoline to point to "rows" section.
         lda #lo(table_irq_rows)
         sta zp_irq_lo
-        ; [=29]
 
         ; Restore registers and return.
-        ldy zp_temp_y
-        lda zp_temp_a
+        IRQ_RESTORE_REGISTERS
+        rti
+
+
+; ------irq colored row routines------
+
+        ; Expect to be called with DMC P0 = 54.
+        ; (IRQ can be called up to 22 CPU cycles late according to Mesen.)
+        ; We change the DMC rate to P1 immediately, and at least P0 cycles to change to P2.
+        JUMP_SLIDE 8
+irq_light_row:
+        ; [+ 3] Preserve registers.
+        IRQ_SAVE_REGISTERS
+        ; [= 3]
+
+        ; [+10] Update DMC with P1 rate.
+        ldy #2
+        lda (zp_irq_lo),y
+        sta DMCFREQ
+        ; [= 9]
+
+        ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
+        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
+        sta PPUMASK
+        lda #PPUMASK_COMMON | PPUMASK_EMPHGREEN
+        sta PPUMASK
+        ; [=19]
+
+        ; [+ 5] Acknowledge IRQ.
+        lda #APUSTATUS_ENABLE_DMC
+        sta APUSTATUS
+        ; [=24]
+
+        ; [+24] Sleep.
+        ; SLEEP 24
+        ; [+ 5] After 54 (P0) cycles, update DMC with P2 rate.
+        lda #DMCFREQ_IRQ_RATE54
+        sta DMCFREQ
+        ; [=63]
+
+        ; Advance IRQ trampoline
+        IRQ_ADVANCE_LOOKUP 3
+
+        ; Restore registers and return.
+        IRQ_RESTORE_REGISTERS
+        rti
+
+
+        ; Expect to be called with DMC P0 = 54.
+        ; (IRQ can be called up to 22 CPU cycles late according to Mesen.)
+        ; We change the DMC rate to P1 immediately, and at least P0 cycles to change to P2.
+        JUMP_SLIDE 8
+irq_dark_row:
+        ; [+ 3] Preserve registers.
+        IRQ_SAVE_REGISTERS
+        ; [= 3]
+
+        ; [+10] Update DMC with P1 rate.
+        ldy #2
+        lda (zp_irq_lo),y
+        sta DMCFREQ
+        ; [= 9]
+
+        ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
+        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
+        sta PPUMASK
+        lda #PPUMASK_COMMON | PPUMASK_EMPHRED | PPUMASK_EMPHGREEN
+        sta PPUMASK
+        ; [=19]
+
+        ; [+ 5] Acknowledge IRQ.
+        lda #APUSTATUS_ENABLE_DMC
+        sta APUSTATUS
+        ; [=24]
+
+        ; [+24] Sleep.
+        ; SLEEP 24
+        ; [+ 5] After 54 (P0) cycles, update DMC with P2 rate.
+        lda #DMCFREQ_IRQ_RATE54
+        sta DMCFREQ
+        ; [=63]
+
+        ; Advance IRQ trampoline
+        IRQ_ADVANCE_LOOKUP 3
+
+        ; Restore registers and return.
+        IRQ_RESTORE_REGISTERS
+        rti
+
+
+        ; Expect to be called with DMC P0 = 54.
+        ; (IRQ can be called up to 22 CPU cycles late according to Mesen.)
+        ; We change the DMC rate to P1 immediately, and at least P0 cycles to change to P2.
+        JUMP_SLIDE 8
+irq_last_row:
+        ; [+ 3] Preserve registers.
+        IRQ_SAVE_REGISTERS
+        ; [= 3]
+
+        ; [+10] Update DMC with P1 rate.
+        ldy #2
+        lda (zp_irq_lo),y
+        sta DMCFREQ
+        ; [= 9]
+
+        ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
+        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
+        sta PPUMASK
+        lda #PPUMASK_COMMON | PPUMASK_EMPHRED
+        sta PPUMASK
+        ; [=19]
+
+        ; [+ 5] Acknowledge IRQ.
+        lda #APUSTATUS_ENABLE_DMC
+        sta APUSTATUS
+        ; [=24]
+
+        ; [+24] Sleep.
+        ; SLEEP 24
+        ; [+ 5] After 54 (P0) cycles, update DMC with P2 rate.
+        lda #DMCFREQ_IRQ_RATE54
+        sta DMCFREQ
+        ; [=63]
+
+        ; Reset IRQ trampoline to point to current frame section.
+        lda zp_frame_index
+        asl
+        asl
+        asl
+        asl
+        sta zp_irq_lo
+
+        ; Restore registers and return.
+        IRQ_RESTORE_REGISTERS
         rti
