@@ -16,6 +16,8 @@ PPUCTRL_VBLANKNMI equ %10000000
 
 PPUMASK equ $2001
 PPUMASK_GREYSCALE equ %1
+PPUMASK_BACKGROUNDLEFT8PX equ %10
+PPUMASK_SPRITELEFT8PX equ %100
 PPUMASK_BACKGROUNDENABLE equ %1000
 PPUMASK_SPRITEENABLE equ %10000
 PPUMASK_EMPHRED equ %100000
@@ -150,7 +152,7 @@ zp_joypad_p1 byt ?
 
 DMC_SAMPLE_ADDR = $ffc0
 
-PPUMASK_COMMON = PPUMASK_BACKGROUNDENABLE | PPUMASK_SPRITEENABLE
+PPUMASK_COMMON = PPUMASK_BACKGROUNDENABLE | PPUMASK_SPRITEENABLE | PPUMASK_BACKGROUNDLEFT8PX | PPUMASK_SPRITELEFT8PX
 
 
 ; PRG start
@@ -240,9 +242,9 @@ reset:
 
     .draw_specific_tiles:
         ; Set some specific tiles in nametable $2000.
-        lda #hi(VRAM_NAMETABLE0 + (32 * 4))
+        lda #hi(VRAM_NAMETABLE0 + (32 * 3))
         sta PPUADDR
-        lda #lo(VRAM_NAMETABLE0 + (32 * 4))
+        lda #lo(VRAM_NAMETABLE0 + (32 * 3))
         sta PPUADDR
         lda #5
         sta PPUDATA
@@ -251,9 +253,9 @@ reset:
         lda #7
         sta PPUDATA
 
-        lda #hi(VRAM_NAMETABLE0 + (32 * 5))
+        lda #hi(VRAM_NAMETABLE0 + (32 * 4))
         sta PPUADDR
-        lda #lo(VRAM_NAMETABLE0 + (32 * 5))
+        lda #lo(VRAM_NAMETABLE0 + (32 * 4))
         sta PPUADDR
         lda #5+16
         sta PPUDATA
@@ -262,9 +264,63 @@ reset:
         lda #7+16
         sta PPUDATA
 
-        lda #hi(VRAM_NAMETABLE0 + (32 * 6))
+        lda #hi(VRAM_NAMETABLE0 + (32 * 5))
         sta PPUADDR
-        lda #lo(VRAM_NAMETABLE0 + (32 * 6))
+        lda #lo(VRAM_NAMETABLE0 + (32 * 5))
+        sta PPUADDR
+        lda #5+32
+        sta PPUDATA
+        lda #6+32
+        sta PPUDATA
+        lda #7+32
+        sta PPUDATA
+
+        ; Set some specific tiles in nametable $2000.
+        lda #hi(VRAM_NAMETABLE0 + (32 * 4) + 4)
+        sta PPUADDR
+        lda #lo(VRAM_NAMETABLE0 + (32 * 4) + 4)
+        sta PPUADDR
+        lda #'P'
+        sta PPUDATA
+        lda #'R'
+        sta PPUDATA
+        lda #'E'
+        sta PPUDATA
+        lda #'S'
+        sta PPUDATA
+        lda #'S'
+        sta PPUDATA
+        lda #' '
+        sta PPUDATA
+        lda #'A'
+        sta PPUDATA
+
+        ; Set some specific tiles in nametable $2000.
+        lda #hi(VRAM_NAMETABLE0 + (32 * 57))
+        sta PPUADDR
+        lda #lo(VRAM_NAMETABLE0 + (32 * 57))
+        sta PPUADDR
+        lda #5
+        sta PPUDATA
+        lda #6
+        sta PPUDATA
+        lda #7
+        sta PPUDATA
+
+        lda #hi(VRAM_NAMETABLE0 + (32 * 58))
+        sta PPUADDR
+        lda #lo(VRAM_NAMETABLE0 + (32 * 58))
+        sta PPUADDR
+        lda #5+16
+        sta PPUDATA
+        lda #6+16
+        sta PPUDATA
+        lda #7+16
+        sta PPUDATA
+
+        lda #hi(VRAM_NAMETABLE0 + (32 * 59))
+        sta PPUADDR
+        lda #lo(VRAM_NAMETABLE0 + (32 * 59))
         sta PPUADDR
         lda #5+32
         sta PPUDATA
@@ -282,14 +338,14 @@ reset:
         bpl -
 
         ; Setup scroll registers.
-        lda #$F8
+        lda #$00
         sta PPUSCROLL
         lda #$00
         sta PPUSCROLL
         ; Setup PPUMASK.
         lda #PPUMASK_COMMON
         sta PPUMASK
-        ; Switch backgrounnd nametable to $2400.
+        ; Switch background nametable to $2400.
         lda #PPUCTRL_NAMETABLE2400 | PPUCTRL_SPRITEPATTERN | PPUCTRL_SPRITE16PXMODE | PPUCTRL_BACKGROUNDPATTERN
         sta PPUCTRL
 
@@ -389,11 +445,11 @@ routine_update_frame_from_joypad:
         ; Start checking joypad for P0.
         lda zp_joypad_p0
         ; BUTTON_RIGHT
-        ldy #$01
+        ldy #$00
         asl a
         bcs +
         ; BUTTON_LEFT
-        ldy #$00
+        ldy #$01
         asl a
         bcs +
         ; BUTTON_DOWN
