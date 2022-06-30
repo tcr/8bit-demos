@@ -114,8 +114,8 @@ irq_reset_to_frame:
         sta DMCFREQ
 
         ; Change PPUMASK twice in quick succession to see a visible artifact.
-        ; lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
-        ; sta PPUMASK
+        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
+        sta PPUMASK
         ; lda #PPUMASK_COMMON | PPUMASK_EMPHRED
         ; sta PPUMASK
 
@@ -169,7 +169,7 @@ irq_set_two_rates_and_advance:
         ; lda #PPUMASK_COMMON | PPUMASK_EMPHBLUE | PPUMASK_EMPHGREEN
         ; sta PPUMASK
         ; [+82] Sleep.
-        SLEEP 82
+        SLEEP 50
         ; [=104]
 
         ; [+ 8] Update DMC P2 with lookup4.
