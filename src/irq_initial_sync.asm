@@ -8,8 +8,7 @@
 
 ; --------nmi--------
 
-        align 256
-
+    align 256
 irq_initial_sync:
         ; pop return address
         pla
@@ -113,16 +112,27 @@ irq_initial_sync:
         sta PPUADDR
         sta PPUADDR
 
+        ; Update IRQ trampoline to "jmp ($xxxx)" indirect lookup to IRQ table.
         lda #$6c
         sta zp_irq_jmp
-        lda #lo(table_irq_rows)
+        lda #lo(irq_routines_table)
         sta zp_irq_lo
-        lda #hi(table_irq_rows)
+        lda #hi(irq_routines_table)
         sta zp_irq_hi
+
+        ; Set up the IRQ align sequence.
+        lda #lo(irq_routines_table_align_0)
+        sta zp_irq_align_sequence
 
         rti
 
+
+; Each decode of the dmc_sync table requires some setup (splitting upper and lower nybbles) so
+; we burn some CPU cycles. Subtract that from the actual delay number.
 DMC_ADJUST = 25
+
+; The sleep method only goes up to 256 cycles, so we split larger numbers into two steps. For lower
+; numbers, if we read a 0, we just don't call the sleep method.
 
     align 16
 dma_sync_delay_1:
@@ -132,51 +142,15 @@ dma_sync_delay_1:
 dma_sync_delay_2:
         byt (428/2)+1, (380/2)+1, (340/2)+1, (320/2)+1, (286/2)+1, (254/2)+1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 
-irq_initial_sync_setup:
-        ; Store IRQ trampoline "jmp irq_initial_sync" into ZP.
-        lda #$4C
-        sta zp_irq_jmp
-        lda #lo(irq_initial_sync)
-        sta zp_irq_lo
-        lda #hi(irq_initial_sync)
-        sta zp_irq_hi
 
-        ; Setup initial DMC rate to the lowest rate before VBLANK.
-        ; This ensures later we will wait the smallest length (<=54*8 cycles) to synchronize.
-        SETMEM_DMCADDRESS DMC_SAMPLE_ADDR
-        lda #0
-        sta DMCLEN
-        lda #DMCFREQ_IRQ_RATE54
-        sta DMCFREQ
+;--------NOP counter--------
 
-        ; Synchronize VBLANK to a consistent PPU frame, so we can time the DMC sync consistently.
-        lda #0
-	    sta zp_even_frame
-        jsr sync_vbl_long
-
-        ; Setup the stack such that an `rti` instruction from IRQ points to the main thread loop
-        cli
-        php
-        sei
-
-        ; Now enable the DMC.
-        ; Due to a hardware quirk, we need to write the sample length three times in a row
-        ; so as not to trigger an immediate IRQ. See https://www.nesdev.org/wiki/APU_DMC
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-        sta APUSTATUS
-        sta APUSTATUS
-
-        ; Re-enable interrupts.
-        cli
-        ; Jump to the NMI waiting code to count NOPs. IRQ will interrupt this command, after which
-        ; it will read the number of "nop" commands elapsed and calibrate DMC times off of it.
-        jmp nmi_nop_count
-
+    ; This method is called after the initial DMC starts to see how many clock cycles we need to
+    ; adjust it by. This must be aligned so we can use the bottom byte of PC as our cycle count
     align 256
-nmi_nop_count:
+nop_chain:
         rept 432/2
             nop
         endm
-        jmp nmi_nop_count
+        jmp nop_chain
 

@@ -1,3 +1,5 @@
+; (IRQ can be called up to 22 CPU cycles late according to Mesen.)
+
 COARSE_SCROLL macro ARGCOARSEX, ARGCOARSEY, ARGFINEY, ARGNAMETABLE
         lda #ARGNAMETABLE << 2 | (ARGCOARSEY >> 3) | (ARGFINEY << 4)
         sta PPUADDR
@@ -5,20 +7,25 @@ COARSE_SCROLL macro ARGCOARSEX, ARGCOARSEY, ARGFINEY, ARGNAMETABLE
         sta PPUADDR
     endm
 
+    ; Simplify how we look up additional bytes from the lookup table with a compiler variable.
+    ; We should advance by at least two bytes (the length of an IRQ routine address) each routine,
+    ; but we can read additional bytes from the table as well.
 IRQ_ADVANCE_COUNT set 0
 
-
+    ; Standard entry macro, preserves A and Y registers. Y register is used for additional lookup
+    ; table values, and A is used for everything. You could also preserve X but simple routines
+    ; don't need it.
 IRQ_ENTER macro
         ; [+ 6] Preserve registers.
         sta zp_temp_a
         sty zp_temp_y
-
+        ; [= 6]
 
 IRQ_ADVANCE_COUNT set 2
     endm
-    ; [= 6]
 
-
+    ; Load the next byte from the table. If used for the first time in a routine, initialize Y
+    ; with 2, otherwise increment Y. Then load the next byte.
 IRQ_LDA_NEXT_BYTE macro
         if IRQ_ADVANCE_COUNT == 2
             ldy #2
@@ -30,6 +37,13 @@ IRQ_LDA_NEXT_BYTE macro
 IRQ_ADVANCE_COUNT set IRQ_ADVANCE_COUNT + 1
     endm
 
+    ; Increment the IRQ trampoline lookup by IRQ_ADVANCE_COUNT bytes.
+IRQ_ADVANCE_LOOKUP macro
+        lda zp_irq_lo
+        clc
+        adc #IRQ_ADVANCE_COUNT
+        sta zp_irq_lo
+    endm
 
 IRQ_EXIT macro
         ; Acknowledge and reset IRQ.
@@ -45,47 +59,37 @@ IRQ_EXIT macro
     endm
 
 
-IRQ_ADVANCE_LOOKUP macro
-        if IRQ_ADVANCE_COUNT < 3
-            rept IRQ_ADVANCE_COUNT
-                inc zp_irq_lo
-            endm
-        else
-            lda zp_irq_lo
-            clc
-            adc #IRQ_ADVANCE_COUNT
-            sta zp_irq_lo
-        endif
-    endm
 
+; -------irq routine empty---------
 
-; -------irq generic routines---------
-
-        ; OPTIMIZED
-        ; TODO remove this by using actual DMA len value?
-irq_keep_rate:
+    ; If you aren't updating DMC rate at all, simply advance the counter.
+irq_routine_empty:
         IRQ_ADVANCE_LOOKUP
         rti
 
 
-irq_set_rate:
+; -------irq routine one step and two step---------
+
+    ; Set the DMC frequency once from the lookup table. P0 will be what DMCFREQ is equal to
+    ; when this IRQ fires, but then next eight periods will be the retrieved frequency.
+irq_routine_one_step:
         IRQ_ENTER
 
         ; Update DMC with P1 and P2 rate.
         IRQ_LDA_NEXT_BYTE
         sta DMCFREQ
 
-        ; [+ 5] Restore PPUMASK to start showing colors after the blanking period.
-        lda #DEFAULT_PPUMASK | PPUMASK_EMPHBLUE
-        sta PPUMASK
-
-        ; Advance IRQ trampoline
         IRQ_ADVANCE_LOOKUP
-
         IRQ_EXIT
 
 
-irq_set_two_rates:
+    ; Set the DMC frequency twice from the lookup table. P0 will be what DMCFREQ is equal to
+    ; when this IRQ fires, P1 will be equal to the first provided frequency, and the next 7
+    ; periods will be the second provided frequency.
+    ;
+    ; NOTE: This function expects DMCFREQ to be 54 or 72 cycles when called. You'll need to adjust
+    ; the timing if DMCFREQ was higher when this routine is used.
+irq_routine_two_step:
         ; [+ 6]
         IRQ_ENTER
         ; [= 6]
@@ -95,122 +99,116 @@ irq_set_two_rates:
         sta DMCFREQ
         ; [=16]
 
-        ; [+ 5] Restore PPUMASK to start showing colors after the blanking period.
-        lda #DEFAULT_PPUMASK | PPUMASK_EMPHBLUE | PPUMASK_EMPHGREEN
-        sta PPUMASK
         ; [+30] Sleep.
         SLEEP 30
         ; [=51]
 
-        ; [+ 5] After 54 (P0) cycles, update DMC with P2 rate.
+        ; [+ 5] After P1 starts, update DMC with P2 rate.
         IRQ_LDA_NEXT_BYTE
         sta DMCFREQ
         ; [=56]
 
-        ; Advance IRQ trampoline
         IRQ_ADVANCE_LOOKUP
-
         IRQ_EXIT
 
 
-irq_reset_to_frame:
+; ------irq routine vblank start------
+
+irq_routine_vblank_start:
+        IRQ_ENTER
+
+        ; Update DMC with P1 and P2 rate.
+        IRQ_LDA_NEXT_BYTE
+        sta DMCFREQ
+
+        ; Perform some PPU changes.
+        ; Set PPUMASK emphasis to grey.
+        lda #DEFAULT_PPUMASK | PPUMASK_GREYSCALE
+        sta PPUMASK
+        ; Reset scroll for the frame.
+        lda #0
+        sta PPUSCROLL
+        sta PPUSCROLL
+
+        ; Evaluate any VBLANK logic in the main program.
+        jsr vblank_from_irq
+
+        IRQ_ADVANCE_LOOKUP
+        IRQ_EXIT
+
+
+; ------irq routines for end-of-frame alignment------
+
+irq_routine_align_start:
         IRQ_ENTER
 
         ; Update DMC with P1 rate.
         IRQ_LDA_NEXT_BYTE
         sta DMCFREQ
 
-        ; Scroll frame.
+        ; Reset PPU scroll to the bottom section following the middle rows.
         COARSE_SCROLL 0, 23, 0, %00
-
-        ; Change PPUMASK twice in quick succession to see a visible artifact.
+        ; Set PPUMASK emphasis to grey.
         lda #DEFAULT_PPUMASK | PPUMASK_GREYSCALE
         sta PPUMASK
-        ; lda #DEFAULT_PPUMASK | PPUMASK_EMPHRED
-        ; sta PPUMASK
-
 
         ; Manually set IRQ trampoline to point to "current frame" section.
-        lda zp_frame_index
-        asl
-        asl
-        asl
-        asl
+        lda zp_irq_align_sequence
         sta zp_irq_lo
 
         IRQ_EXIT
 
 
-irq_set_rate_and_advance:
+irq_routine_one_step_align:
         IRQ_ENTER
 
         ; Update DMC P1 with lookup3.
         IRQ_LDA_NEXT_BYTE
         sta DMCFREQ
 
-        ; Restore PPUMASK to start showing colors after the blanking period.
-        ; lda #DEFAULT_PPUMASK | PPUMASK_EMPHBLUE | PPUMASK_EMPHGREEN
-        ; sta PPUMASK
-
-        ; Read the joypad, then update frame index based on it.
-        jsr routine_read_joypad
-        ldy zp_frame_index
-        jsr routine_update_frame_from_joypad
-
-        ; Manually set IRQ trampoline to point to "rows" section.
-        lda #lo(table_irq_rows)
+        ; Update the alignment sequence from the lookup table.
+        IRQ_LDA_NEXT_BYTE
+        sta zp_irq_align_sequence
+        ; Set the IRQ trampoline to point to the start of the table again.
+        lda #lo(irq_routines_table)
         sta zp_irq_lo
 
         IRQ_EXIT
 
 
-irq_set_two_rates_and_advance:
-        ; DMC P0=lookup2
-
+irq_routine_two_step_align:
         ; [+ 6]
         IRQ_ENTER
-        ; [= 6]
-
         ; [+11] Update DMC P1 with lookup3.
         IRQ_LDA_NEXT_BYTE
         sta DMCFREQ
-        ; [=17]
-
-        ; [+ 5] Restore PPUMASK to start showing colors after the blanking period.
-        ; lda #DEFAULT_PPUMASK | PPUMASK_EMPHBLUE | PPUMASK_EMPHGREEN
-        ; sta PPUMASK
-        ; [+82] Sleep.
+        ; [+50] Sleep.
         SLEEP 50
-        ; [=104]
+        ; [=67]
 
         ; [+ 8] Update DMC P2 with lookup4.
         IRQ_LDA_NEXT_BYTE
         sta DMCFREQ
-        ; [=112]
-
-        ; Read the joypad, then update frame index based on it.
-        jsr routine_read_joypad
-        ldy zp_frame_index
-        jsr routine_update_frame_from_joypad
-
-        ; Manually set IRQ trampoline to point to "rows" section.
-        lda #lo(table_irq_rows)
+        ; [=75]
+        
+        ; Update the alignment sequence from the lookup table.
+        IRQ_LDA_NEXT_BYTE
+        sta zp_irq_align_sequence
+        ; Set the IRQ trampoline to point to the start of the table again.
+        lda #lo(irq_routines_table)
         sta zp_irq_lo
 
         IRQ_EXIT
 
 
-; ------irq colored row routines------
+; ------irq routines for light/dark rows------
 
         ; Expect to be called with DMC P0 = 54.
-        ; (IRQ can be called up to 22 CPU cycles late according to Mesen.)
         ; We change the DMC rate to P1 immediately, and at least P0 cycles to change to P2.
         JUMP_SLIDE 8
-irq_light_row:
+irq_routine_row_light:
         ; [+ 6] 
         IRQ_ENTER
-        ; [= 6]
-
         ; [+10] Update DMC with P1 rate.
         IRQ_LDA_NEXT_BYTE
         sta DMCFREQ
@@ -218,33 +216,27 @@ irq_light_row:
 
         ; Set PPUSCROLL register.
         COARSE_SCROLL 0, 7, 0, %00
-
-        ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
-        lda #DEFAULT_PPUMASK | PPUMASK_EMPHGREEN
+        ; [+10] Clear PPUMASK.
+        lda #DEFAULT_PPUMASK
         sta PPUMASK
 
-
         ; [+ 8] Sleep.
-        sleep 8
+        sleep 12
         ; [=34]
-
 
         ; [+ 5] After 54 (P0) cycles, update DMC with P2 rate.
         lda #DMCFREQ_IRQ_RATE54
         sta DMCFREQ
         ; [=39]
 
-        ; Advance IRQ trampoline
         IRQ_ADVANCE_LOOKUP
-
         IRQ_EXIT
 
 
         ; Expect to be called with DMC P0 = 54.
-        ; (IRQ can be called up to 22 CPU cycles late according to Mesen.)
         ; We change the DMC rate to P1 immediately, and at least P0 cycles to change to P2.
         JUMP_SLIDE 8
-irq_dark_row:
+irq_routine_row_dark:
         ; [+ 6] Preserve registers.
         IRQ_ENTER
         ; [= 6]
@@ -257,86 +249,18 @@ irq_dark_row:
         ; Set PPUSCROLL register.
         COARSE_SCROLL 2, 7, 0, %00
 
-        ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
+        ; [+10] Change PPUMASK to darken row.
         lda #DEFAULT_PPUMASK | PPUMASK_EMPHRED | PPUMASK_EMPHGREEN | PPUMASK_EMPHBLUE
         sta PPUMASK
 
-
         ; [+ 8] Sleep.
-        sleep 8
+        sleep 12
         ; [=34]
-
 
         ; [+ 5] After 54 (P0) cycles, update DMC with P2 rate.
         lda #DMCFREQ_IRQ_RATE54
         sta DMCFREQ
         ; [=39]
 
-        ; Advance IRQ trampoline
         IRQ_ADVANCE_LOOKUP
-
-        IRQ_EXIT
-
-
-irq_blank_set_rate:
-        IRQ_ENTER
-
-        ; Update DMC with P1 and P2 rate.
-        IRQ_LDA_NEXT_BYTE
-        sta DMCFREQ
-
-        ; [+ 5] Restore PPUMASK to start showing colors after the blanking period.
-        lda #DEFAULT_PPUMASK | PPUMASK_GREYSCALE
-        sta PPUMASK
-
-        ; Advance IRQ trampoline
-        IRQ_ADVANCE_LOOKUP
-
-        IRQ_EXIT
-
-
-irq_vblank_start:
-        IRQ_ENTER
-
-        ; Update DMC with P1 and P2 rate.
-        IRQ_LDA_NEXT_BYTE
-        sta DMCFREQ
-
-        ; [+ 5] Restore PPUMASK to start showing colors after the blanking period.
-        lda #DEFAULT_PPUMASK | PPUMASK_GREYSCALE
-        sta PPUMASK
-
-        ; Reset scroll
-        lda #0
-        sta PPUSCROLL
-        sta PPUSCROLL
-
-        ; Advance IRQ trampoline
-        IRQ_ADVANCE_LOOKUP
-
-        IRQ_EXIT
-
-
-irq_map_set_two_rates:
-        ; [+ 6]
-        IRQ_ENTER
-        ; [= 6]
-
-        ; [+10] Update DMC with P1 rate.
-        IRQ_LDA_NEXT_BYTE
-        sta DMCFREQ
-        ; [=16]
-
-        ; [+30] Sleep.
-        SLEEP 30
-        ; [=51]
-
-        ; [+ 5] After 54 (P0) cycles, update DMC with P2 rate.
-        IRQ_LDA_NEXT_BYTE
-        sta DMCFREQ
-        ; [=56]
-
-        ; Advance IRQ trampoline
-        IRQ_ADVANCE_LOOKUP
-
         IRQ_EXIT

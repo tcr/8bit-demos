@@ -41,11 +41,11 @@ sync_vbl_long:
         dex
         bne -
         nop
-        lda zp_even_frame
+        jmp * + 3 ; 3-cycle nop
 
         ; Render one frame. This moves VBL time earlier by either
         ; 1/3 or 2/3 CPU clock.
-        lda #$08
+        lda #PPUMASK_BACKGROUNDENABLE | PPUMASK_BACKGROUNDLEFT8PX
         sta PPUMASK
         
         ; Delay 29752 clocks
@@ -82,7 +82,10 @@ sync_vbl_long:
 
     .ret:	; Now, if rendering is enabled, first frame will be long.
 
-        ; Delay 29782 - n clocks
+        ; Delay 29782 - [some amount] clocks
+        ; NOTE: this is changed to stop well before vblank, so that DMC calibration can happen
+        ; and the first IRQ will fire at the start of scanline 240. This can be manually adjusted
+        ; as needed, as well as the delay length in dmc_sync.asm.
         ldy #32
         ldx #23
     -:	
@@ -91,8 +94,5 @@ sync_vbl_long:
         nop
         dex
         bne -
-        nop
-        nop
-        nop
 
         rts

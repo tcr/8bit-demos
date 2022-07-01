@@ -91,6 +91,17 @@ VRAM_PALETTETABLE equ $3F00
 
 ; Macros
 
+    MACEXP_DFT  nomacro, noif
+
+WORD macro reg
+    if      "REG"<>""
+        byt    lo(reg), hi(reg)
+        shift
+        WORD ALLARGS
+    endif
+    endm
+
+
 SETMEM_DMCADDRESS macro TARGETADDR
         if (TARGETADDR # 64) <> 0
             error "Address must be divisible by 64"
@@ -114,6 +125,8 @@ JUMP_SLIDE macro CYCLES
         bit $EA
     endm
 
+
+    ; SLEEP macro calls into sleep_routine method (with a nop slide before it to adjust timing)
 SLEEP macro ARGCYCLES
         if ~~((ARGCYCLES # 1) == 0)
             error "Cycle must be even"
@@ -127,6 +140,22 @@ SLEEP macro ARGCYCLES
         else
             jsr sleep_routine - ((ARGCYCLES - 10) / 2)
         endif
+    endm
+
+
+    ; Simplify writing to nametable
+PRINT_STRING macro XPOS, YPOS, STRING
+        lda #(((YPOS * 32) + XPOS) / 256 + $20)
+        sta PPUADDR
+        lda #(((YPOS * 32) + XPOS) # 256)
+        sta PPUADDR
+
+I set 0
+        while I < STRLEN(STRING)
+            lda #CHARFROMSTR(STRING, I)
+            sta PPUDATA      
+I set I + 1
+        endm
     endm
 
 
@@ -147,7 +176,7 @@ zp_frame_index byt ?
 zp_joypad_p0 byt ?
 zp_joypad_p1 byt ?
 
-zp_even_frame byt ?
+zp_irq_align_sequence byt ?
 
 
 ; Game constants
@@ -201,9 +230,7 @@ reset:
         bne -
 
     .setup_ppu:
-        ; Trigger OAM DMA. This has the side effect of aligning the APU and CPU on an
-        ; even cycle. Though this feature is not used in this demo.
-        lda #$07
+        ; Clear OAM DMA.
         sta OAMDMA
 
         ; Set PPU control registers.
@@ -270,24 +297,7 @@ reset:
         sta PPUCTRL
 
         ; Set some specific tiles in nametable $2000.
-        lda #hi(VRAM_NAMETABLE0 + (32 * 5) + 4)
-        sta PPUADDR
-        lda #lo(VRAM_NAMETABLE0 + (32 * 5) + 4)
-        sta PPUADDR
-        lda #'P'
-        sta PPUDATA
-        lda #'R'
-        sta PPUDATA
-        lda #'E'
-        sta PPUDATA
-        lda #'S'
-        sta PPUDATA
-        lda #'S'
-        sta PPUDATA
-        lda #' '
-        sta PPUDATA
-        lda #'A'
-        sta PPUDATA
+        PRINT_STRING 4, 5, "PRESS A"
 
         ; Set some specific tiles in nametable $2000.
         lda #hi(VRAM_NAMETABLE0 + (32 * 4))
@@ -376,20 +386,61 @@ reset:
 
         ; Wait for the user to press the A button.
     .button_a_wait:
-        jsr routine_read_joypad
+        jsr read_joypad
         lda zp_joypad_p0
         and #BUTTON_A
         beq .button_a_wait
 
         ; Begin DMC timer synchronization.
     .sync_dmc:
-        jsr irq_initial_sync_setup
+        ; Store IRQ trampoline "jmp irq_initial_sync" into ZP.
+        lda #$4C
+        sta zp_irq_jmp
+        lda #lo(irq_initial_sync)
+        sta zp_irq_lo
+        lda #hi(irq_initial_sync)
+        sta zp_irq_hi
+
+        ; Setup initial DMC rate to the lowest rate before VBLANK.
+        ; This ensures later we will wait the smallest length (<=54*8 cycles) to synchronize.
+        SETMEM_DMCADDRESS DMC_SAMPLE_ADDR
+        lda #0
+        sta DMCLEN
+        lda #DMCFREQ_IRQ_RATE54
+        sta DMCFREQ
+
+        ; Synchronize VBLANK to a consistent PPU frame, so we can time the DMC sync consistently.
+        jsr sync_vbl_long
+
+        ; Setup the stack such that an `rti` instruction from IRQ points to the main thread loop
+        cli
+        lda #hi(main_loop)
+        pha
+        lda #lo(main_loop)
+        pha
+        php
+        sei
+
+        ; Now enable the DMC.
+        ; Due to a hardware quirk, we need to write the sample length three times in a row
+        ; so as not to trigger an immediate IRQ. See https://www.nesdev.org/wiki/APU_DMC
+        lda #APUSTATUS_ENABLE_DMC
+        sta APUSTATUS
+        sta APUSTATUS
+        sta APUSTATUS
+
+        ; Re-enable interrupts.
+        cli
+        ; Jump to the NMI waiting code to count NOPs. IRQ will interrupt this command, after which
+        ; it will read the number of "nop" commands elapsed and calibrate DMC times off of it.
+        jmp nop_chain
 
 
+    ; By the time this is called, the IRQ chain has now been initialized, so you can safely
+    ; perform your game logic.
 main_loop:
-        ; Repeating cycle of opcodes on main thread,
-        ; with some 7-cycle instructions to help
-        ; demonstrate IRQ jitter.
+        ; Looping cycle of dummy opcodes on main thread,
+        ; with some 7-cycle instructions to help demonstrate IRQ jitter.
         ldx #0
     .loop_end:
         inc $0100,X
@@ -399,9 +450,67 @@ main_loop:
         jmp .loop_end
 
 
+; -------vblank routine----------
+
+    ; This "VBLANK" routine is not called from NMI, but from the IRQ routine that is
+    ; synced to start at VBLANK (start of scanline 241)
+vblank_from_irq:
+        ; Update instructions
+        lda PPUSTATUS
+        PRINT_STRING 4, 5, "PRESS B"
+        ; Reset PPUADDR
+        lda #0
+        sta PPUADDR
+        sta PPUADDR
+
+        ; Read joypad and respond to some keys.
+        jsr read_joypad
+        lda zp_joypad_p0
+        and #BUTTON_LEFT
+        bne .button_left
+        lda zp_joypad_p0
+        and #BUTTON_RIGHT
+        bne .button_right
+        lda zp_joypad_p0
+        and #BUTTON_B
+        bne .button_b_reset
+        rts
+
+        ; Pressing left or right adjusts the "align" frame, just for debugging.
+    .button_left:
+        lda #lo(irq_routines_table_align_0)
+        sta zp_irq_align_sequence
+        rts
+
+    .button_right:
+        lda #lo(irq_routines_table_align_1)
+        sta zp_irq_align_sequence
+        rts
+    
+        ; Pressing button B resets the demo.
+    .button_b_reset:
+        ; Because this was called from a routine inside an interrupt, we have five stack values
+        ; we need to clear.
+        pla
+        pla
+        pla
+        pla
+        pla
+        ; Add the reset vector to the stack as our return value.
+        lda #hi(reset)
+        pha
+        lda #lo(reset)
+        pha
+        php
+        ; We also acknowledge and disable DMC IRQ so it won't keep firing.
+        lda #0
+        sta APUSTATUS
+        ; Return from IRQ, directly into the reset logic.
+        rti
+
 ; --------ppu palette--------
 
-; PPU Palette table
+    ; PPU Palette table
 table_palette:
         ; Background
         byt $0f, $21, $0d, $8c
@@ -417,93 +526,19 @@ table_palette:
 
 ; --------joypad routines--------
 
-; Also see https://www.nesdev.org/wiki/Controller_reading_code
-routine_read_joypad:
-        ; Start controller read.
-        lda #JOYPADLATCH_FILLCONTROLLER
-        sta JOYPADLATCH
-
-        ; $80 is loaded into the result first.
-        ; Once eight bits are shifted in, last bit will be shifted out, terminating the loop.
-        lda #%10000000
-        sta zp_joypad_p0
-        sta zp_joypad_p1
-
-        ; By storing 0 into JOYPAD1, the strobe bit is cleared and the reloading stops.
-        lda #$00
-        sta JOYPADLATCH
-    -:
-        ; Read the latch for P0. Move bit D0 -> Carry, then into the top bit of P0.
-        lda JOYPADP0READ
-        lsr a
-        ror zp_joypad_p0
-
-        ; Read the latch for P1. Move bit D0 -> Carry, then into the top bit of P1.
-        lda JOYPADP1READ
-        lsr a
-        ror zp_joypad_p1
-
-        ; Once we've read all 8 bits (ZP value shifts off top bit), exit the loop.
-        bcc -
-
-        rts
+    include "joypad.asm"
 
 
-routine_update_frame_from_joypad:
-        ; Calculate frame adjustment based off joypad values.
-        lda table_frame_offset,y
-        tay
-        ; If we have a positive offset, use it. Otherwise, evaluate joypad.
-        bpl +
+; --------IRQ syncing code--------
 
-        ; Start checking joypad for P0.
-        lda zp_joypad_p0
-        ; BUTTON_RIGHT
-        ldy #$00
-        asl a
-        bcs +
-        ; BUTTON_LEFT
-        ldy #$01
-        asl a
-        bcs +
-        ; BUTTON_DOWN
-        ldy #$04
-        asl a
-        bcs +
-        ; BUTTON_UP
-        ldy #$05
-        asl a
-        bcs +
+    include "sync_vbl_long.asm"
 
-        ; No directional buttons pressed, so restart the frame loop at x = 3.
-        ldy #$03
-    +:
-        sty zp_frame_index
-
-        rts
+    include "irq_initial_sync.asm"
 
 
-; ------ irq rows -------
+; ------ IRQ routines -------
 
     include "irq_routines.asm"
-
-
-; --------DMC frequencies--------
-
-    MACEXP_DFT  nomacro, noif
-
-word macro reg
-    if      "REG"<>""
-        byt    lo(reg), hi(reg)
-        shift
-        word ALLARGS
-    endif
-    endm
-
-
-; Frequencies to use for each frame index.
-
-        align 256
 
 IRQ_CALL macro ADDRESS, NEXTREG
         word ADDRESS
@@ -513,14 +548,7 @@ IRQ_CALL macro ADDRESS, NEXTREG
         endif
     endm
 
-        align 256
-table_irq:
-        include "irq_table.asm"
-
-
-; --------long vblank routine--------
-
-        include "sync_vbl_long.asm"
+    include "irq_routines_table.asm"
 
 
 ; --------sub start--------
@@ -531,35 +559,33 @@ table_irq:
 sleep_routine:
         rts
 
-; -
 
-        include "irq_initial_sync.asm"
-
-; --------APU sample block--------
+; --------DMC sample block--------
 
     org DMC_SAMPLE_ADDR
 
+    ; Use a 17-byte $00 sample in case IRQ logic ever needs it
+    ; $00 will output nothing in the sound channel
 dmc_sample:
         rept 17
             byt $00
         endm
 
 
-; --
+; --------Reset Vectors--------
 
-    ; dummy nmi interrupt, unused by program
+    ; Dummy nmi interrupt. NMI is never enabled by the program.
+    org $fff0
 nmi:
         rti
 
 
-; --------Reset Vectors--------
-
-    org $FFFA
-
+    ; Vectors table
+    org $fffa
 vectors:
         ; nmi
         byt lo(nmi), hi(nmi)
         ; reset
         byt lo(reset), hi(reset)
-        ; irq
+        ; irq trampoline
         byt lo(zp_irq_jmp), hi(zp_irq_jmp)
