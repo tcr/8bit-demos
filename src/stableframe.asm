@@ -383,49 +383,7 @@ reset:
 
         ; Begin DMC timer synchronization.
     .sync_dmc:
-        ; Store IRQ trampoline "jmp irq_initial_sync" into ZP.
-        lda #$4C
-        sta zp_irq_jmp
-        lda #lo(irq_initial_sync)
-        sta zp_irq_lo
-        lda #hi(irq_initial_sync)
-        sta zp_irq_hi
-
-        ; Setup initial DMC rate to the lowest rate before VBLANK.
-        ; This ensures later we will wait the smallest length (<=54*8 cycles) to synchronize.
-        SETMEM_DMCADDRESS DMC_SAMPLE_ADDR
-        lda #0
-        sta DMCLEN
-        lda #DMCFREQ_IRQ_RATE54
-        sta DMCFREQ
-
-        ; Synchronize VBLANK to a consistent PPU frame, so we can time the DMC sync consistently.
-        lda #0
-	    sta zp_even_frame
-        jsr sync_vbl_long
-
-        ; Setup the stack such that an `rti` instruction from IRQ points to the main thread loop
-        cli
-        lda #hi(main_loop)
-        pha
-        lda #lo(main_loop)
-        pha
-        php
-        sei
-
-        ; Now enable the DMC.
-        ; Due to a hardware quirk, we need to write the sample length three times in a row
-        ; so as not to trigger an immediate IRQ. See https://www.nesdev.org/wiki/APU_DMC
-        lda #APUSTATUS_ENABLE_DMC
-        sta APUSTATUS
-        sta APUSTATUS
-        sta APUSTATUS
-
-        ; Re-enable interrupts.
-        cli
-        ; Jump to the NMI waiting code to count NOPs. IRQ will interrupt this command, after which
-        ; it will read the number of "nop" commands elapsed and calibrate DMC times off of it.
-        jmp nmi_nop_count
+        jsr irq_initial_sync_setup
 
 
 main_loop:
