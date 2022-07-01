@@ -1,5 +1,6 @@
+# python gen_cycle_map.py > cycle_map.py
+
 from itertools import product, chain
-import json
 
 R1 = [54, 72, 84, 106, 128, 160, 190, 214, 226, 254, 286, 320, 340, 380, 428]
 R1rev = list(R1)

@@ -246,9 +246,19 @@ reset:
         ; Do so using the 32-tile increment mode.
         lda #DEFAULT_PPUCTRL | PPUCTRL_INCREMENTMODE
         sta PPUCTRL
-        lda #hi(VRAM_NAMETABLE0 + $e0)
+        lda #hi(VRAM_NAMETABLE0 + $e2)
         sta PPUADDR
-        lda #lo(VRAM_NAMETABLE0 + $e0)
+        lda #lo(VRAM_NAMETABLE0 + $e2)
+        sta PPUADDR
+        lda #$08
+        ldx #16
+    -:
+        sta PPUDATA
+        dex
+        bne -
+        lda #hi(VRAM_NAMETABLE0 + $e9)
+        sta PPUADDR
+        lda #lo(VRAM_NAMETABLE0 + $e9)
         sta PPUADDR
         lda #$08
         ldx #16
@@ -284,33 +294,33 @@ reset:
         sta PPUADDR
         lda #lo(VRAM_NAMETABLE0 + (32 * 4))
         sta PPUADDR
-        lda #5
+        lda #9
         sta PPUDATA
-        lda #6
+        lda #10
         sta PPUDATA
-        lda #7
+        lda #11
         sta PPUDATA
 
         lda #hi(VRAM_NAMETABLE0 + (32 * 5))
         sta PPUADDR
         lda #lo(VRAM_NAMETABLE0 + (32 * 5))
         sta PPUADDR
-        lda #5+16
+        lda #9+16
         sta PPUDATA
-        lda #6+16
+        lda #10+16
         sta PPUDATA
-        lda #7+16
+        lda #11+16
         sta PPUDATA
 
         lda #hi(VRAM_NAMETABLE0 + (32 * 6))
         sta PPUADDR
         lda #lo(VRAM_NAMETABLE0 + (32 * 6))
         sta PPUADDR
-        lda #5+32
+        lda #9+32
         sta PPUDATA
-        lda #6+32
+        lda #10+32
         sta PPUDATA
-        lda #7+32
+        lda #11+32
         sta PPUDATA
 
         ; Set some specific tiles in nametable $2000.

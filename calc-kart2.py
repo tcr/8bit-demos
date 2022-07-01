@@ -151,8 +151,9 @@ def run_kernel(state):
     state.two_step(r72, r54)
     state.two_step(r84, r54)
 
+vblank_to_frame = 1364
 
-start_offset = 8818
+start_offset = vblank_to_frame + 7446
 
 state.reset(r54)
 state.advance(start_offset)

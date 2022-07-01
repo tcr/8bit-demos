@@ -1,3 +1,10 @@
+COARSE_SCROLL macro ARGCOARSEX, ARGCOARSEY, ARGFINEY, ARGNAMETABLE
+        lda #ARGNAMETABLE << 2 | (ARGCOARSEY >> 3) | (ARGFINEY << 4)
+        sta PPUADDR
+        lda #ARGCOARSEX | (cutout(ARGCOARSEY, 0, 3) << 5)
+        sta PPUADDR
+    endm
+
 IRQ_ADVANCE_COUNT set 0
 
 
@@ -113,11 +120,15 @@ irq_reset_to_frame:
         IRQ_LDA_NEXT_BYTE
         sta DMCFREQ
 
+        ; Scroll frame.
+        COARSE_SCROLL 0, 23, 0, %00
+
         ; Change PPUMASK twice in quick succession to see a visible artifact.
         lda #DEFAULT_PPUMASK | PPUMASK_GREYSCALE
         sta PPUMASK
         ; lda #DEFAULT_PPUMASK | PPUMASK_EMPHRED
         ; sta PPUMASK
+
 
         ; Manually set IRQ trampoline to point to "current frame" section.
         lda zp_frame_index
@@ -205,14 +216,18 @@ irq_light_row:
         sta DMCFREQ
         ; [=16]
 
+        ; Set PPUSCROLL register.
+        COARSE_SCROLL 0, 7, 0, %00
+
         ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
-        lda #DEFAULT_PPUMASK | PPUMASK_GREYSCALE
-        sta PPUMASK
         lda #DEFAULT_PPUMASK | PPUMASK_EMPHGREEN
         sta PPUMASK
+
+
         ; [+ 8] Sleep.
         sleep 8
         ; [=34]
+
 
         ; [+ 5] After 54 (P0) cycles, update DMC with P2 rate.
         lda #DMCFREQ_IRQ_RATE54
@@ -239,14 +254,18 @@ irq_dark_row:
         sta DMCFREQ
         ; [=16]
 
+        ; Set PPUSCROLL register.
+        COARSE_SCROLL 2, 7, 0, %00
+
         ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
-        lda #DEFAULT_PPUMASK | PPUMASK_GREYSCALE
-        sta PPUMASK
         lda #DEFAULT_PPUMASK | PPUMASK_EMPHRED | PPUMASK_EMPHGREEN | PPUMASK_EMPHBLUE
         sta PPUMASK
+
+
         ; [+ 8] Sleep.
         sleep 8
         ; [=34]
+
 
         ; [+ 5] After 54 (P0) cycles, update DMC with P2 rate.
         lda #DMCFREQ_IRQ_RATE54
@@ -274,6 +293,29 @@ irq_blank_set_rate:
         IRQ_ADVANCE_LOOKUP
 
         IRQ_EXIT
+
+
+irq_vblank_start:
+        IRQ_ENTER
+
+        ; Update DMC with P1 and P2 rate.
+        IRQ_LDA_NEXT_BYTE
+        sta DMCFREQ
+
+        ; [+ 5] Restore PPUMASK to start showing colors after the blanking period.
+        lda #DEFAULT_PPUMASK | PPUMASK_GREYSCALE
+        sta PPUMASK
+
+        ; Reset scroll
+        lda #0
+        sta PPUSCROLL
+        sta PPUSCROLL
+
+        ; Advance IRQ trampoline
+        IRQ_ADVANCE_LOOKUP
+
+        IRQ_EXIT
+
 
 irq_map_set_two_rates:
         ; [+ 6]
