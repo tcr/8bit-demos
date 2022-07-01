@@ -59,6 +59,7 @@ ALL_RATES = [
 ]
 
 CPU_CYCLES_PER_FRAME = 29780.5
+CPU_CYCLES_PER_SCANLINE = 341/3
 
 
 class State:
@@ -83,6 +84,8 @@ class State:
         self.rate = p0
         self.cpu = 0
 
+        print("; python gen_irq_routines_table.py > src/irq_routines_table.asm")
+        print()
         print("        align 256")
         print("irq_routines_table:")
 
@@ -194,52 +197,30 @@ class State:
 def output_rows(state):
     # This irregular sequence of frequencies keeps us averaging about 4 scanlines per row.
     odd = True
-    for freq in [
-        r84,
-        r72,
-        r72,
-        r84,
-        r72,
-        r72,
-        r84,
-        r72,
-        r84,
-        r72,
-        r72,
-        r84,
-        r72,
-        r72,
-        r84,
-        r72,
-        r84,
-        r72,
-        r72,
-        r84,
-        r72,
-        r72,
-        r84,
-        r72,
-        r84,
-        r72,
-        r72,
-        r84,
-        r72,
-        r84,
-        r72,
-        r84,
-    ]:
+    freq = r84
+    start_cpu = state.cpu
+    for row in range(0, 32):
+        # color off/even frames
         if odd:
             routine = "irq_routine_row_light"
         else:
             routine = "irq_routine_row_dark"
         odd = not odd
 
-        if freq == r84:
-            routine += " - 4"
-        else:
-            routine += " - 0"
-
+        # advance in two steps
         state.two_step(freq, r54, routine=routine, output_arg_two=False)
+
+        # see which frequency to use next by seeing if we are over or under
+        elapsed_cycles = (state.cpu - start_cpu)
+        expected_cycles = (row + 1) * 4 * CPU_CYCLES_PER_SCANLINE
+        if elapsed_cycles > expected_cycles:
+            # overshot
+            freq = r72
+        else:
+            # undershot
+            freq = r84
+        
+        # print(row, freq, (state.cpu - start_cpu) / CPU_CYCLES_PER_SCANLINE, offset - (row + 1) * 4, file=stderr)
 
 
 # Build the state generator.
@@ -252,9 +233,11 @@ cycle_rows = 8698  # cycle to start rendering the middle rows
 state.start(r54)
 state.one_step(r428, routine="irq_routine_vblank_start")
 state.advance_to(cycle_rows)
+print()
 
 # 2. Output the series of middle rows.
 output_rows(state)
+print()
 
 # 3. One routine to branch to end-of-frame alignment.
 state.one_step(r428, routine="irq_routine_align_start")
