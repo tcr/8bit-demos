@@ -108,12 +108,14 @@ class State:
         self.cpu += p1_2 * 7
         self.rate = p1_2
 
-        args = [routine]
+        args = []
         if output_arg_one:
             args.append(f"DMCFREQ_IRQ_RATE{p1_2}")
         args.extend(additional_args)
 
-        print(f'        IRQ_CALL {", ".join(args)}')
+        print(f'        WORD {routine}')
+        if len(args) > 0:
+            print(f'            byt {", ".join(args)}')
 
         if PRINT_SCANLINES:
             self.print_scanline()
@@ -132,14 +134,16 @@ class State:
         self.cpu += p2 * 6
         self.rate = p2
 
-        args = [routine]
+        args = []
         if output_arg_one:
             args.append(f"DMCFREQ_IRQ_RATE{p1}")
         if output_arg_two:
             args.append(f"DMCFREQ_IRQ_RATE{p2}")
         args.extend(additional_args)
 
-        print(f'        IRQ_CALL {", ".join(args)}')
+        print(f'        WORD {routine}')
+        if len(args) > 0:
+            print(f'            byt {", ".join(args)}')
 
         if PRINT_SCANLINES:
             self.print_scanline()

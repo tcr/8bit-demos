@@ -536,17 +536,9 @@ table_palette:
     include "irq_initial_sync.asm"
 
 
-; ------ IRQ routines -------
+; ------ game-specific IRQ routines -------
 
     include "irq_routines.asm"
-
-IRQ_CALL macro ADDRESS, NEXTREG
-        word ADDRESS
-        if "NEXTREG" <> ""
-            shift
-            byt ALLARGS
-        endif
-    endm
 
     include "irq_routines_table.asm"
 
