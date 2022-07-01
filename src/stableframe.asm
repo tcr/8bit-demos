@@ -297,7 +297,7 @@ reset:
         sta PPUCTRL
 
         ; Set some specific tiles in nametable $2000.
-        PRINT_STRING 4, 5, "PRESS A"
+        PRINT_STRING 4, 5, "PRESS A TO SYNC"
 
         ; Set some specific tiles in nametable $2000.
         lda #hi(VRAM_NAMETABLE0 + (32 * 4))
@@ -457,7 +457,7 @@ main_loop:
 vblank_from_irq:
         ; Update instructions
         lda PPUSTATUS
-        PRINT_STRING 4, 5, "PRESS B"
+        PRINT_STRING 4, 5, "PRESS B TO RESET"
         ; Reset PPUADDR
         lda #0
         sta PPUADDR
