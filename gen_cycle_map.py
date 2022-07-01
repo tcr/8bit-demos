@@ -8,6 +8,7 @@ R1rev.reverse()
 
 R1twostep = [[e, 54] for e in R1rev]
 
+
 def nested_product(lst):
     lst_positions = [l for l in lst if isinstance(l, list)]
     for p in product(*lst_positions):
@@ -30,7 +31,10 @@ def step(args):
             acc += last * 7
     return acc
 
+
 fit = dict()
+
+
 def fit_set(arg):
     global fit
     s = step(arg)
@@ -39,6 +43,7 @@ def fit_set(arg):
             fit[s] = arg
     else:
         fit[s] = arg
+
 
 for pr in nested_product([[54]]):
     fit_set(pr)
