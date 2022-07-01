@@ -76,14 +76,14 @@ JOYPADLATCH equ $4016
 JOYPADLATCH_FILLCONTROLLER equ %1
 JOYPADP0READ equ $4016
 JOYPADP1READ equ $4017
-BUTTON_A      = 1 << 7
-BUTTON_B      = 1 << 6
-BUTTON_SELECT = 1 << 5
-BUTTON_START  = 1 << 4
-BUTTON_UP     = 1 << 3
-BUTTON_DOWN   = 1 << 2
-BUTTON_LEFT   = 1 << 1
-BUTTON_RIGHT  = 1 << 0
+BUTTON_A      = 1 << 0
+BUTTON_B      = 1 << 1
+BUTTON_SELECT = 1 << 2
+BUTTON_START  = 1 << 3
+BUTTON_UP     = 1 << 4
+BUTTON_DOWN   = 1 << 5
+BUTTON_LEFT   = 1 << 6
+BUTTON_RIGHT  = 1 << 7
 
 VRAM_NAMETABLE0 equ $2000
 VRAM_PALETTETABLE equ $3F00
@@ -154,7 +154,8 @@ zp_even_frame byt ?
 
 DMC_SAMPLE_ADDR = $ffc0
 
-PPUMASK_COMMON = PPUMASK_BACKGROUNDENABLE | PPUMASK_SPRITEENABLE | PPUMASK_BACKGROUNDLEFT8PX | PPUMASK_SPRITELEFT8PX
+DEFAULT_PPUMASK = PPUMASK_BACKGROUNDENABLE | PPUMASK_SPRITEENABLE | PPUMASK_BACKGROUNDLEFT8PX | PPUMASK_SPRITELEFT8PX
+DEFAULT_PPUCTRL = PPUCTRL_NAMETABLE2000 | PPUCTRL_SPRITEPATTERN | PPUCTRL_SPRITE16PXMODE | PPUCTRL_BACKGROUNDPATTERN
 
 
 ; PRG start
@@ -169,18 +170,11 @@ reset:
         sta PPUCTRL
         sta PPUMASK
         sta APUSTATUS
-        sta DMCFREQ
-        sta DMCLEN
         lda #$40
         sta JOYPADP1READ
         cld
         ldx #$ff
         txs
-
-        ; Reset DMC rate to the lowest rate before waiting frames for PPU to settle.
-        ; This ensures at NMI we will wait the smallest cycle length for measurement.
-        lda #DMCFREQ_IRQ_RATE54
-        sta DMCFREQ
 
         ; Wait for PPU
         ldx #3
@@ -213,28 +207,8 @@ reset:
         sta OAMDMA
 
         ; Set PPU control registers.
-        lda #PPUCTRL_NAMETABLE2800 | PPUCTRL_SPRITEPATTERN | PPUCTRL_SPRITE16PXMODE
+        lda #DEFAULT_PPUCTRL
         sta PPUCTRL
-
-        ; Clear out nametable $2000 in a loop.
-        lda #hi(VRAM_NAMETABLE0)
-        sta PPUADDR
-        lda #lo(VRAM_NAMETABLE0)
-        sta PPUADDR
-        lda #$00
-        ldx #$00
-        ldy #$08
-    -:
-        sta PPUDATA
-        stx PPUDATA
-        sta PPUDATA
-        stx PPUDATA
-        stx PPUDATA
-        stx PPUDATA
-        stx PPUDATA
-        sta PPUDATA
-        inx
-        bne -
 
         ; Load palette table into palette VRAM.
         lda #hi(VRAM_PALETTETABLE)
@@ -248,7 +222,43 @@ reset:
         cpx #$20
         bcc -
 
-    .draw_specific_tiles:
+    .setup_nametable:
+        ; Update all of nametable $2000 in a loop.
+        lda #hi(VRAM_NAMETABLE0)
+        sta PPUADDR
+        lda #lo(VRAM_NAMETABLE0)
+        sta PPUADDR
+        lda #$04
+        ldx #(960 / 8)
+    -:
+        sta PPUDATA
+        sta PPUDATA
+        sta PPUDATA
+        sta PPUDATA
+        sta PPUDATA
+        sta PPUDATA
+        sta PPUDATA
+        sta PPUDATA
+        dex
+        bne -
+
+        ; Update the left of the nametable with triangles.
+        ; Do so using the 32-tile increment mode.
+        lda #DEFAULT_PPUCTRL | PPUCTRL_INCREMENTMODE
+        sta PPUCTRL
+        lda #hi(VRAM_NAMETABLE0 + $e0)
+        sta PPUADDR
+        lda #lo(VRAM_NAMETABLE0 + $e0)
+        sta PPUADDR
+        lda #$08
+        ldx #16
+    -:
+        sta PPUDATA
+        dex
+        bne -
+        lda #DEFAULT_PPUCTRL
+        sta PPUCTRL
+
         ; Set some specific tiles in nametable $2000.
         lda #hi(VRAM_NAMETABLE0 + (32 * 4) + 4)
         sta PPUADDR
@@ -351,81 +361,64 @@ reset:
         lda #$00
         sta PPUSCROLL
         ; Setup PPUMASK.
-        lda #PPUMASK_COMMON
+        lda #DEFAULT_PPUMASK
         sta PPUMASK
 
-        ; Switch background nametable to $2400.
-        lda #PPUCTRL_NAMETABLE2400 | PPUCTRL_SPRITEPATTERN | PPUCTRL_SPRITE16PXMODE | PPUCTRL_BACKGROUNDPATTERN
-        sta PPUCTRL
-
-    .setup_dmc:
-        ; Store IRQ trampoline "jmp (table_irq)" into ZP.
-        lda #$4C
-        sta zp_irq_jmp
-        lda #lo(rti_during_nmi)
-        sta zp_irq_lo
-        lda #hi(rti_during_nmi)
-        sta zp_irq_hi
-
-        ; Setup initial DMC.
-        SETMEM_DMCADDRESS DMC_SAMPLE_ADDR
-        ; lda #0
-        ; sta DMCLEN
-        ; lda #DMCFREQ_IRQ_RATE54
-        ; sta DMCFREQ
-        ; ; Due to a hardware quirk, we need to write the sample length three times in a row
-        ; ; so as not to trigger an immediate IRQ. See https://www.nesdev.org/wiki/APU_DMC
-        ; lda #APUSTATUS_ENABLE_DMC
-        ; sta APUSTATUS
-        ; sta APUSTATUS
-        ; sta APUSTATUS
-        ; ; Re-enable interrupts.
-        ; cli
-
+        ; Wait for the user to press the A button.
     .button_a_wait:
         jsr routine_read_joypad
         lda zp_joypad_p0
-        and #BUTTON_DOWN
+        and #BUTTON_A
         beq .button_a_wait
 
+        ; Begin DMC timer synchronization.
+    .sync_dmc:
+        ; Store IRQ trampoline "jmp irq_initial_sync" into ZP.
+        lda #$4C
+        sta zp_irq_jmp
+        lda #lo(irq_initial_sync)
+        sta zp_irq_lo
+        lda #hi(irq_initial_sync)
+        sta zp_irq_hi
+
+        ; Setup initial DMC rate to the lowest rate before VBLANK.
+        ; This ensures later we will wait the smallest length (<=54*8 cycles) to synchronize.
+        SETMEM_DMCADDRESS DMC_SAMPLE_ADDR
         lda #0
-        sta PPUCTRL
-	    sta $2001
+        sta DMCLEN
+        lda #DMCFREQ_IRQ_RATE54
+        sta DMCFREQ
+
+        ; Synchronize VBLANK to a consistent PPU frame, so we can time the DMC sync consistently.
+        lda #0
 	    sta zp_even_frame
         jsr sync_vbl_long
-        
-        ; Switch background nametable to $2400.
-        lda #PPUCTRL_NAMETABLE2400 | PPUCTRL_SPRITEPATTERN | PPUCTRL_SPRITE16PXMODE | PPUCTRL_BACKGROUNDPATTERN
-        sta PPUCTRL
 
+        ; Setup the stack such that an `rti` instruction from IRQ points to the main thread loop
         cli
-        lda #hi(.sync_start)
+        lda #hi(main_loop)
         pha
-        lda #lo(.sync_start)
+        lda #lo(main_loop)
         pha
         php
         sei
-        
-        lda #0
-        sta DMCLEN
+
+        ; Now enable the DMC.
         ; Due to a hardware quirk, we need to write the sample length three times in a row
         ; so as not to trigger an immediate IRQ. See https://www.nesdev.org/wiki/APU_DMC
         lda #APUSTATUS_ENABLE_DMC
         sta APUSTATUS
         sta APUSTATUS
         sta APUSTATUS
+
         ; Re-enable interrupts.
         cli
+        ; Jump to the NMI waiting code to count NOPs. IRQ will interrupt this command, after which
+        ; it will read the number of "nop" commands elapsed and calibrate DMC times off of it.
         jmp nmi_nop_count
 
-    .sync_start:
-        ; jsr routine_read_joypad
-        ; lda zp_joypad_p0
-        ; and #BUTTON_DOWN
-        ; bne .sync_start
 
-        ; jmp .button_a_wait
-
+main_loop:
         ; Repeating cycle of opcodes on main thread,
         ; with some 7-cycle instructions to help
         ; demonstrate IRQ jitter.
@@ -438,20 +431,20 @@ reset:
         jmp .loop_end
 
 
-; --------data block--------
+; --------ppu palette--------
 
 ; PPU Palette table
 table_palette:
         ; Background
-        byt $22, $21, $14, $8c
-        byt $22, $21, $14, $38
-        byt $22, $21, $14, $38 
-        byt $22, $21, $14, $0f
+        byt $0f, $21, $0d, $8c
+        byt $0f, $21, $14, $38
+        byt $0f, $21, $14, $38 
+        byt $0f, $21, $14, $0f
         ; Sprites
-        byt $22, $21, $11, $31
-        byt $22, $21, $11, $31
-        byt $22, $21, $11, $31
-        byt $22, $21, $11, $31
+        byt $0f, $21, $11, $31
+        byt $0f, $21, $11, $31
+        byt $0f, $21, $11, $31
+        byt $0f, $21, $11, $31
 
 
 ; --------joypad routines--------
@@ -531,15 +524,11 @@ routine_update_frame_from_joypad:
 
     MACEXP_DFT  nomacro, noif
 
-d8 macro
-        byt ALLARGS
-    endm
-
-d16 macro reg
+word macro reg
     if      "REG"<>""
         byt    lo(reg), hi(reg)
         shift
-        d16 ALLARGS
+        word ALLARGS
     endif
     endm
 
@@ -549,10 +538,10 @@ d16 macro reg
         align 256
 
 IRQ_CALL macro ADDRESS, NEXTREG
-        d16 ADDRESS
+        word ADDRESS
         if "NEXTREG" <> ""
             shift
-            d8 ALLARGS
+            byt ALLARGS
         endif
     endm
 
@@ -563,111 +552,7 @@ table_irq:
 
 ; --------long vblank routine--------
 
-    align 128
-    ; From blargg's full_pallete demo.
-    ; Synchronizes precisely with PPU so that next frame will be long.
-sync_vbl_long:
-    -:	
-        bit $2002
-        bpl -
-        ; Set background color while disabled
-        lda #hi(VRAM_PALETTETABLE + $f)
-        sta PPUADDR
-        ldx #lo(VRAM_PALETTETABLE + $f)
-        stx PPUADDR
-        
-
-        ; Synchronize precisely to VBL. VBL occurs every 29780.67
-        ; CPU clocks. Loop takes 27 clocks. Every 1103 iterations,
-        ; the second LDA $2002 will read exactly 29781 clocks
-        ; after a previous read. Thus, the loop will effectively
-        ; read $2002 one PPU clock later each frame. It starts out
-        ; with VBL beginning sometime after this read, so that
-        ; eventually VBL will begin just before the $2002 read,
-        ; and thus leave CPU exactly synchronized to VBL.
-        bit $2002
-    -:	
-        bit $2002
-        bpl -
-    -:
-        nop
-        pha
-        pla
-        lda $2002
-        lda $2002
-        pha
-        pla
-        bpl -
-        
-        ; Now synchronize with short/long frames.
-        
-        ; Wait one frame with rendering off. This moves VBL time
-        ; earlier by 1/3 CPU clock.
-        
-        ; Delay 29784 clocks
-        ldx #24
-        ldy #48
-    -:	
-        dey
-        bne -
-        dex
-        bne -
-        nop
-        lda zp_even_frame
-
-        ; Render one frame. This moves VBL time earlier by either
-        ; 1/3 or 2/3 CPU clock.
-        lda #$08
-        sta $2001
-        
-        ; Delay 29752 clocks
-        ldy #33
-        ldx #24
-    -:
-        dey
-        bne -
-        nop
-        dex
-        bne -
-
-        lda #0
-        sta $2001
-        
-        ; VBL flag will read set if rendered frame was short
-        bit $2002
-        bmi .ret
-        
-        ; Rendered frame was long, so wait another (long)
-        ; frame with rendering disabled. If rendering were enabled,
-        ; this would be a short frame, so we end up in same state
-        ; as if it were short frame above.
-        
-        ; Delay 29782 clocks
-        ldy #39
-        ldx #24
-    -:	
-        dey
-        bne -
-        nop
-        dex
-        bne -
-
-    .ret:	; Now, if rendering is enabled, first frame will be long.
-
-        ; Delay 29782 - n clocks
-        ldy #32
-        ldx #23
-    -:	
-        dey
-        bne -
-        nop
-        dex
-        bne -
-        nop
-        nop
-        nop
-
-        rts
+        include "sync_vbl_long.asm"
 
 
 ; --------sub start--------
@@ -683,7 +568,7 @@ sleep_routine:
 
         align 256
 
-rti_during_nmi:
+irq_initial_sync:
         ; pop return address
         pla
         pla
@@ -799,13 +684,13 @@ DMC_ADJUST = 25
 
     align 16
 dma_sync_delay_1:
-    byt (428/2)-DMC_ADJUST, (380/2)-DMC_ADJUST, (340/2)-DMC_ADJUST, (320/2)-DMC_ADJUST, (286/2)-DMC_ADJUST, (254/2)-DMC_ADJUST, (226)-DMC_ADJUST, (214)-DMC_ADJUST, (190)-DMC_ADJUST, (160)-DMC_ADJUST, (142)-DMC_ADJUST, (128)-DMC_ADJUST, (106)-DMC_ADJUST, (84)-DMC_ADJUST, (72)-DMC_ADJUST, (54)-DMC_ADJUST
+        byt (428/2)-DMC_ADJUST, (380/2)-DMC_ADJUST, (340/2)-DMC_ADJUST, (320/2)-DMC_ADJUST, (286/2)-DMC_ADJUST, (254/2)-DMC_ADJUST, (226)-DMC_ADJUST, (214)-DMC_ADJUST, (190)-DMC_ADJUST, (160)-DMC_ADJUST, (142)-DMC_ADJUST, (128)-DMC_ADJUST, (106)-DMC_ADJUST, (84)-DMC_ADJUST, (72)-DMC_ADJUST, (54)-DMC_ADJUST
 
     align 16
 dma_sync_delay_2:
-    byt (428/2)+1, (380/2)+1, (340/2)+1, (320/2)+1, (286/2)+1, (254/2)+1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        byt (428/2)+1, (380/2)+1, (340/2)+1, (320/2)+1, (286/2)+1, (254/2)+1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 
-        align 256
+    align 256
 nmi_nop_count:
         rept 432/2
             nop
@@ -813,7 +698,7 @@ nmi_nop_count:
         jmp nmi_nop_count
 
 
-    ; dummy nmi
+    ; dummy nmi interrupt, unused by program
 nmi:
         rti
 

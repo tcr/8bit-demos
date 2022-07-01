@@ -152,7 +152,7 @@ def run_kernel(state):
     state.two_step(r84, r54)
 
 
-start_offset = 8822
+start_offset = 8818
 
 state.reset(r54)
 state.advance(start_offset)

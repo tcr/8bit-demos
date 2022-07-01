@@ -69,7 +69,7 @@ irq_set_rate:
         sta DMCFREQ
 
         ; [+ 5] Restore PPUMASK to start showing colors after the blanking period.
-        lda #PPUMASK_COMMON | PPUMASK_EMPHBLUE
+        lda #DEFAULT_PPUMASK | PPUMASK_EMPHBLUE
         sta PPUMASK
 
         ; Advance IRQ trampoline
@@ -89,7 +89,7 @@ irq_set_two_rates:
         ; [=16]
 
         ; [+ 5] Restore PPUMASK to start showing colors after the blanking period.
-        lda #PPUMASK_COMMON | PPUMASK_EMPHBLUE | PPUMASK_EMPHGREEN
+        lda #DEFAULT_PPUMASK | PPUMASK_EMPHBLUE | PPUMASK_EMPHGREEN
         sta PPUMASK
         ; [+30] Sleep.
         SLEEP 30
@@ -114,9 +114,9 @@ irq_reset_to_frame:
         sta DMCFREQ
 
         ; Change PPUMASK twice in quick succession to see a visible artifact.
-        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
+        lda #DEFAULT_PPUMASK | PPUMASK_GREYSCALE
         sta PPUMASK
-        ; lda #PPUMASK_COMMON | PPUMASK_EMPHRED
+        ; lda #DEFAULT_PPUMASK | PPUMASK_EMPHRED
         ; sta PPUMASK
 
         ; Manually set IRQ trampoline to point to "current frame" section.
@@ -138,7 +138,7 @@ irq_set_rate_and_advance:
         sta DMCFREQ
 
         ; Restore PPUMASK to start showing colors after the blanking period.
-        ; lda #PPUMASK_COMMON | PPUMASK_EMPHBLUE | PPUMASK_EMPHGREEN
+        ; lda #DEFAULT_PPUMASK | PPUMASK_EMPHBLUE | PPUMASK_EMPHGREEN
         ; sta PPUMASK
 
         ; Read the joypad, then update frame index based on it.
@@ -166,7 +166,7 @@ irq_set_two_rates_and_advance:
         ; [=17]
 
         ; [+ 5] Restore PPUMASK to start showing colors after the blanking period.
-        ; lda #PPUMASK_COMMON | PPUMASK_EMPHBLUE | PPUMASK_EMPHGREEN
+        ; lda #DEFAULT_PPUMASK | PPUMASK_EMPHBLUE | PPUMASK_EMPHGREEN
         ; sta PPUMASK
         ; [+82] Sleep.
         SLEEP 50
@@ -206,9 +206,9 @@ irq_light_row:
         ; [=16]
 
         ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
-        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
+        lda #DEFAULT_PPUMASK | PPUMASK_GREYSCALE
         sta PPUMASK
-        lda #PPUMASK_COMMON | PPUMASK_EMPHGREEN
+        lda #DEFAULT_PPUMASK | PPUMASK_EMPHGREEN
         sta PPUMASK
         ; [+ 8] Sleep.
         sleep 8
@@ -240,9 +240,9 @@ irq_dark_row:
         ; [=16]
 
         ; [+10] Change PPUMASK twice in quick succession to see a visible artifact.
-        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
+        lda #DEFAULT_PPUMASK | PPUMASK_GREYSCALE
         sta PPUMASK
-        lda #PPUMASK_COMMON | PPUMASK_EMPHRED | PPUMASK_EMPHGREEN
+        lda #DEFAULT_PPUMASK | PPUMASK_EMPHRED | PPUMASK_EMPHGREEN | PPUMASK_EMPHBLUE
         sta PPUMASK
         ; [+ 8] Sleep.
         sleep 8
@@ -267,7 +267,7 @@ irq_blank_set_rate:
         sta DMCFREQ
 
         ; [+ 5] Restore PPUMASK to start showing colors after the blanking period.
-        lda #PPUMASK_COMMON | PPUMASK_GREYSCALE
+        lda #DEFAULT_PPUMASK | PPUMASK_GREYSCALE
         sta PPUMASK
 
         ; Advance IRQ trampoline
