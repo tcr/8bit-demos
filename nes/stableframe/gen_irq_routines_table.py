@@ -199,11 +199,19 @@ class State:
 
 # Generate the middle rows using a chain of two step routines, with 72 and 84 being P1 values
 def output_rows(state):
-    # This irregular sequence of frequencies keeps us averaging about 4 scanlines per row.
-    odd = True
-    freq = r84
     start_cpu = state.cpu
-    modifier = 4
+
+    # Odd frames are light, even frames are dark
+    odd = True
+
+    # Start by creating an IRQ >4 scanlines.
+    freq = r84
+
+    # Aligning with JUMP_CYCLE in code, we can reduce some jitter by using different values for
+    # cycle_modifier to wait odd or even numbers of CPU cycles before running each interrupt.
+    cycle_modifier = 4
+
+    # This irregular sequence of frequencies keeps us averaging about 4 scanlines per row.
     for row in range(0, 32):
         # color off/even frames
         if odd:
@@ -212,7 +220,7 @@ def output_rows(state):
             routine = "irq_routine_row_dark"
         odd = not odd
 
-        routine += f' - {modifier}'
+        routine += f' - {cycle_modifier}'
 
         # advance in two steps
         state.two_step(freq, r54, routine=routine, output_arg_two=False)
@@ -228,9 +236,9 @@ def output_rows(state):
             freq = r84
 
         if elapsed_cycles - expected_cycles < 6:
-            modifier = 4
+            cycle_modifier = 4
         else:
-            modifier = 3
+            cycle_modifier = 3
 
         # print(row, freq, elapsed_cycles - expected_cycles, file=stderr)
         # print(row, freq, (state.cpu - start_cpu) / CPU_CYCLES_PER_SCANLINE, offset - (row + 1) * 4, file=stderr)
