@@ -3,15 +3,21 @@
 An NES demo implementing supercat's [strategy for DMC-driven
 IRQs](https://forums.nesdev.org/viewtopic.php?t=18854) by changing DMC frequency mid-interrupt.
 
+**Download the demo [stableframe.nes 🕹](https://github.com/tcr/8bit-demos/blob/main/nes/stableframe/stableframe.nes?raw=true)**
+
 <img width="480" alt="pre-sync"
 src="https://user-images.githubusercontent.com/80639/176984613-bda3f15e-59ad-4c93-b988-0e26f7c8d458.png"> <img width="480" alt="post-sync" src="https://user-images.githubusercontent.com/80639/176984600-5b8c6e82-03a9-4b36-a878-b5b778cd297e.png">
 
 This demo shows mid-frame IRQs to create 32 colored rows, each four scanlines apart, without using a
-mapper. It was tested in FCEUX, Mesen, and a front-loader NES (USA/NTSC).
+mapper. Each row modifies the color emphasis bits as well as scroll. This demo has been tested in
+FCEUX, Mesen, and a front-loader NES (USA/NTSC).
 
-This demo should be able to be adapted for your game. It was motivated for use in the
+This code should be able to be adapted for your game. It was motivated for use in the
 [NESDev Compo 2022](https://itch.io/jam/nesdev-2022), as the "Games" category doesn't allow any
 mappers that provide scanline-based IRQ support.
+
+You may need to install the [AS Macroassembler](http://john.ccac.rwth-aachen.de:8000/as/) to build
+via `make`.
 
 
 ## How it works
@@ -59,6 +65,17 @@ build your custom routines in `irq_routines.asm`.
 **NOTE:** The initial DMC synchronization may not be perfect. Very rarely, bugs appear during
 repeated re-syncs in Mesen and FCEUX. But when correctly synchronized, the frame seems to be stable
 for upwards of several days running on my NES.
+
+
+## Mesen Script
+
+To test how the synchronization works, you can see exactly which `dmu_sync` lookup value is used to
+corresponds to DMC delay exactly when you press A by loading the `mesen_ppu_sync.lua` script.
+
+<img width="480" alt="image"
+src="https://user-images.githubusercontent.com/80639/176988384-8740181c-5242-4418-917e-632219235670.png">
+
+The dialog will appear whenever you press A, and disappear when you press B to reset.
 
 
 ## References

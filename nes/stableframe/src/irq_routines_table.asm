@@ -13,69 +13,69 @@ irq_routines_table:
         WORD irq_routine_two_step
             byt DMCFREQ_IRQ_RATE190, DMCFREQ_IRQ_RATE54
 
-        WORD irq_routine_row_light - 3
-            byt DMCFREQ_IRQ_RATE84
-        WORD irq_routine_row_dark - 2
-            byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_light - 3
-            byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_dark - 3
-            byt DMCFREQ_IRQ_RATE84
-        WORD irq_routine_row_light - 3
-            byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_dark - 3
-            byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_light - 3
+        WORD irq_routine_row_light - 4
             byt DMCFREQ_IRQ_RATE84
         WORD irq_routine_row_dark - 3
             byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_light - 3
+        WORD irq_routine_row_light - 4
+            byt DMCFREQ_IRQ_RATE72
+        WORD irq_routine_row_dark - 4
             byt DMCFREQ_IRQ_RATE84
-        WORD irq_routine_row_dark - 2
+        WORD irq_routine_row_light - 4
             byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_light - 3
+        WORD irq_routine_row_dark - 4
             byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_dark - 3
+        WORD irq_routine_row_light - 4
             byt DMCFREQ_IRQ_RATE84
-        WORD irq_routine_row_light - 3
+        WORD irq_routine_row_dark - 4
             byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_dark - 3
-            byt DMCFREQ_IRQ_RATE84
-        WORD irq_routine_row_light - 2
-            byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_dark - 3
-            byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_light - 3
+        WORD irq_routine_row_light - 4
             byt DMCFREQ_IRQ_RATE84
         WORD irq_routine_row_dark - 3
             byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_light - 3
+        WORD irq_routine_row_light - 4
+            byt DMCFREQ_IRQ_RATE72
+        WORD irq_routine_row_dark - 4
             byt DMCFREQ_IRQ_RATE84
-        WORD irq_routine_row_dark - 2
+        WORD irq_routine_row_light - 4
             byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_light - 3
-            byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_dark - 3
-            byt DMCFREQ_IRQ_RATE84
-        WORD irq_routine_row_light - 3
-            byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_dark - 3
-            byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_light - 3
-            byt DMCFREQ_IRQ_RATE84
-        WORD irq_routine_row_dark - 3
-            byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_light - 3
-            byt DMCFREQ_IRQ_RATE84
-        WORD irq_routine_row_dark - 2
-            byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_light - 3
-            byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_dark - 3
+        WORD irq_routine_row_dark - 4
             byt DMCFREQ_IRQ_RATE84
         WORD irq_routine_row_light - 3
             byt DMCFREQ_IRQ_RATE72
+        WORD irq_routine_row_dark - 4
+            byt DMCFREQ_IRQ_RATE72
+        WORD irq_routine_row_light - 4
+            byt DMCFREQ_IRQ_RATE84
+        WORD irq_routine_row_dark - 4
+            byt DMCFREQ_IRQ_RATE72
+        WORD irq_routine_row_light - 4
+            byt DMCFREQ_IRQ_RATE84
         WORD irq_routine_row_dark - 3
+            byt DMCFREQ_IRQ_RATE72
+        WORD irq_routine_row_light - 4
+            byt DMCFREQ_IRQ_RATE72
+        WORD irq_routine_row_dark - 4
+            byt DMCFREQ_IRQ_RATE84
+        WORD irq_routine_row_light - 4
+            byt DMCFREQ_IRQ_RATE72
+        WORD irq_routine_row_dark - 4
+            byt DMCFREQ_IRQ_RATE72
+        WORD irq_routine_row_light - 4
+            byt DMCFREQ_IRQ_RATE84
+        WORD irq_routine_row_dark - 4
+            byt DMCFREQ_IRQ_RATE72
+        WORD irq_routine_row_light - 4
+            byt DMCFREQ_IRQ_RATE84
+        WORD irq_routine_row_dark - 3
+            byt DMCFREQ_IRQ_RATE72
+        WORD irq_routine_row_light - 4
+            byt DMCFREQ_IRQ_RATE72
+        WORD irq_routine_row_dark - 4
+            byt DMCFREQ_IRQ_RATE84
+        WORD irq_routine_row_light - 4
+            byt DMCFREQ_IRQ_RATE72
+        WORD irq_routine_row_dark - 4
             byt DMCFREQ_IRQ_RATE84
 
         WORD irq_routine_align_start

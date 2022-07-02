@@ -51,6 +51,8 @@ IRQ_EXIT macro
         rti
     endm
 
+    ; "Quick coarse" scroll logic.
+    ; https://www.nesdev.org/wiki/PPU_scrolling#Quick_coarse_X/Y_split
 COARSE_SCROLL macro ARGCOARSEX, ARGCOARSEY, ARGFINEY, ARGNAMETABLE
         lda #ARGNAMETABLE << 2 | (ARGCOARSEY >> 3) | (ARGFINEY << 4)
         ldy #ARGCOARSEX | (cutout(ARGCOARSEY, 0, 3) << 5)

@@ -203,7 +203,7 @@ def output_rows(state):
     odd = True
     freq = r84
     start_cpu = state.cpu
-    modifier = 3
+    modifier = 4
     for row in range(0, 32):
         # color off/even frames
         if odd:
@@ -228,11 +228,11 @@ def output_rows(state):
             freq = r84
 
         if elapsed_cycles - expected_cycles < 6:
-            modifier = 3
+            modifier = 4
         else:
-            modifier = 2
+            modifier = 3
+
         # print(row, freq, elapsed_cycles - expected_cycles, file=stderr)
-        
         # print(row, freq, (state.cpu - start_cpu) / CPU_CYCLES_PER_SCANLINE, offset - (row + 1) * 4, file=stderr)
 
 
