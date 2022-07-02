@@ -11,13 +11,13 @@ all: img/HelloWorld.chr
 
 	cat build/header.bin \
 		build/prg.bin \
-		build/chr.bin > build/stableframe.nes
+		build/chr.bin > stableframe.nes
 
 run: all
-	fceux ./build/stableframe.nes
+	fceux ./stableframe.nes
 
 run-mame: all
-	mame nes -cart ./build/stableframe.nes
+	mame nes -cart ./stableframe.nes
 
 img/HelloWorld.chr: img/HelloWorld.png
 	pixconsola encode $< --format nes -o $@
