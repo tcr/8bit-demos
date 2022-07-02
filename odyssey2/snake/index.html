@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+
+<html>
+    <meta charset="utf-8">
+<head>
+    <style>
+        html, body, #content {
+            display: block;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        #content {
+            display: flex;
+            flex-direction: row;
+        }
+
+        #sidebar {
+            width: 300px;
+            max-width: 20%;
+        }
+
+        #frame {
+            flex-grow: 1;
+        }
+
+        #sidebar a.current {
+            background-color: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div id="content">
+        <div id="sidebar">
+            <ul>
+                <li><a href="http://www.atarihq.com/danb/files/o2doc.pdf" target="frame">Odyssey 2 Technical Specs V1.1</a></li>
+                <li><a href="https://web.archive.org/web/20121115030829/http://soeren.informationstheater.de/g7000/g7kbios.pdf" target="frame">Sören's Videopac Guide</a></li>
+                <li><a href="http://www.atarihq.com/danb/o2.shtml" target="frame">Dan B's Odyssey 2 Site</a></li>
+                <li><a href="https://web.archive.org/web/20130615121310/http://soeren.informationstheater.de/g7000/Index.html" target="frame">Sören's Videopac Site</a></li>
+                <li><a href="http://home.kpn.nl/~rene_g7400/vp_info/o2romsrc.txt" target="frame">Odyssey2 BIOS Disassembly</a></li>
+                <li><a href="https://atarihq.com/danb/files/8048.txt" target="frame">8048 Opcode Listing</a></li>
+                <li><a href="https://devsaurus.github.io/mcs-48/mcs-48.pdf" target="frame">Grokking the MCS-48 System</a></li>
+                <li><a href="http://home.kpn.nl/~rene_g7400/vp_info/vdc.txt" target="frame">VDC Register Info</a></li>
+                <li><a href="https://www.instagram.com/p/BGPLVwqRdn-/?taken-by=burodestruct" target="frame">VDC Tileset Reference</a></li>                
+                <li><a href="https://edgeemu.net/details-175138.htm" target="frame">MAME ROM for Odyssey 2</a></li>
+                <li><a href="https://jhnbyrn.github.io/951-KLR-PAGES/reference/9800255D_MCS-48_and_UPI-41_Assembly_Language_Reference_Manual_Dec78.pdf" target="frame">MCS-48 Assembly Reference</a></li>
+                <li><a href="https://jhnbyrn.github.io/951-KLR-PAGES/reading_code.html" target="frame">Reading Code</a></li>
+                <li><a href="http://john.ccac.rwth-aachen.de:8000/as/as_EN.html" target="frame">ASL Compiler Reference</a></li>
+            </ul>
+        </div>
+        <iframe src="about:blank" name="frame" id="frame"></iframe>
+    </div>
+</body>
+
+<script>
+    document.querySelectorAll('a').forEach(link => {
+        link.addEventListener('click', () => {
+            try {
+                document.querySelector('a.current').classList.remove('current');
+            } catch (e) { }
+            link.classList.add('current');
+        });
+    });
+</script>
+</html>
