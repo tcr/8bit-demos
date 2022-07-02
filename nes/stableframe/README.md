@@ -10,7 +10,11 @@ src="https://user-images.githubusercontent.com/80639/176984613-bda3f15e-59ad-4c9
 
 This demo shows mid-frame IRQs to create 32 colored rows, each four scanlines apart, without using a
 mapper. Each row modifies the color emphasis bits as well as scroll. This demo has been tested in
-FCEUX, Mesen, and a front-loader NES (USA/NTSC).
+FCEUX, Mesen, and a front-loader NES (USA/NTSC). Instructions:
+
+1. Press A to start mid-frame interrupts.
+2. Press left and right buttons to shift the sync (for debugging).
+3. Press B to reset the game.
 
 This code should be able to be adapted for your game. It was motivated for use in the
 [NESDev Compo 2022](https://itch.io/jam/nesdev-2022), as the "Games" category doesn't allow any

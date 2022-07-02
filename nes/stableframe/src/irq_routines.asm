@@ -17,14 +17,9 @@ IRQ_ENTER macro
 IRQ_ADVANCE_COUNT set 2
     endm
 
-    ; Load the next byte from the table. If used for the first time in a routine, initialize Y
-    ; with 2, otherwise increment Y. Then load the next byte.
+    ; Load the next byte from the table.
 IRQ_LDA_NEXT_BYTE macro
-        if IRQ_ADVANCE_COUNT == 2
-            ldy #2
-        else
-            iny
-        endif
+        ldy #IRQ_ADVANCE_COUNT
         lda (zp_irq_lo),y
 
 IRQ_ADVANCE_COUNT set IRQ_ADVANCE_COUNT + 1
@@ -51,7 +46,7 @@ IRQ_EXIT macro
         rti
     endm
 
-    ; "Quick coarse" scroll logic.
+    ; "Quick coarse" scroll logic. Trashes A and Y.
     ; https://www.nesdev.org/wiki/PPU_scrolling#Quick_coarse_X/Y_split
 COARSE_SCROLL macro ARGCOARSEX, ARGCOARSEY, ARGFINEY, ARGNAMETABLE
         lda #ARGNAMETABLE << 2 | (ARGCOARSEY >> 3) | (ARGFINEY << 4)
