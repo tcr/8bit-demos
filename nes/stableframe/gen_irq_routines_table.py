@@ -203,6 +203,7 @@ def output_rows(state):
     odd = True
     freq = r84
     start_cpu = state.cpu
+    modifier = 3
     for row in range(0, 32):
         # color off/even frames
         if odd:
@@ -210,6 +211,8 @@ def output_rows(state):
         else:
             routine = "irq_routine_row_dark"
         odd = not odd
+
+        routine += f' - {modifier}'
 
         # advance in two steps
         state.two_step(freq, r54, routine=routine, output_arg_two=False)
@@ -223,6 +226,12 @@ def output_rows(state):
         else:
             # undershot
             freq = r84
+
+        if elapsed_cycles - expected_cycles < 6:
+            modifier = 3
+        else:
+            modifier = 2
+        # print(row, freq, elapsed_cycles - expected_cycles, file=stderr)
         
         # print(row, freq, (state.cpu - start_cpu) / CPU_CYCLES_PER_SCANLINE, offset - (row + 1) * 4, file=stderr)
 
@@ -231,7 +240,7 @@ def output_rows(state):
 state = State()
 
 cycles_vblank = 1364  # ~12 scanlines
-cycle_rows = 8698  # cycle to start rendering the middle rows
+cycle_rows = 8696  # cycle to start rendering the middle rows
 
 # 1. Start with a VBLANK routine, then advance up to offset_to_rows.
 state.start(r54)
@@ -244,7 +253,7 @@ output_rows(state)
 print()
 
 # 3. One routine to branch to end-of-frame alignment.
-state.one_step(r428, routine="irq_routine_align_start")
+state.one_step(r54, routine="irq_routine_align_start")
 print()
 
 # 4. Output four alignment sequences. The first one overshoots by 1.5 clock cycles, and each

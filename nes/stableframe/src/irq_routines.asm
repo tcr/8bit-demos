@@ -1,12 +1,5 @@
 ; (IRQ can be called up to 22 CPU cycles late according to Mesen.)
 
-COARSE_SCROLL macro ARGCOARSEX, ARGCOARSEY, ARGFINEY, ARGNAMETABLE
-        lda #ARGNAMETABLE << 2 | (ARGCOARSEY >> 3) | (ARGFINEY << 4)
-        sta PPUADDR
-        lda #ARGCOARSEX | (cutout(ARGCOARSEY, 0, 3) << 5)
-        sta PPUADDR
-    endm
-
     ; Simplify how we look up additional bytes from the lookup table with a compiler variable.
     ; We should advance by at least two bytes (the length of an IRQ routine address) each routine,
     ; but we can read additional bytes from the table as well.
@@ -56,6 +49,13 @@ IRQ_EXIT macro
 
         ; Return from interrupt.
         rti
+    endm
+
+COARSE_SCROLL macro ARGCOARSEX, ARGCOARSEY, ARGFINEY, ARGNAMETABLE
+        lda #ARGNAMETABLE << 2 | (ARGCOARSEY >> 3) | (ARGFINEY << 4)
+        ldy #ARGCOARSEX | (cutout(ARGCOARSEY, 0, 3) << 5)
+        sta PPUADDR
+        sty PPUADDR
     endm
 
 
