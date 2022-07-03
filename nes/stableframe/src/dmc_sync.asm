@@ -38,6 +38,7 @@ initial_dmc_sync:
         lda #hi(irq_initial_sync)
         sta zp_irq_hi
 
+initial_dmc_sync_midway:
         ; Setup initial DMC rate to the lowest rate before VBLANK.
         ; This ensures later we will wait the smallest length (<=54*8 cycles) to synchronize.
         SETMEM_DMCADDRESS DMC_SAMPLE_ADDR
@@ -90,9 +91,9 @@ irq_initial_sync_bail:
         sei
 
         ; Restart the DMC sync process and hope we get a different sync delay.
-        lda #hi(initial_dmc_sync)
+        lda #hi(initial_dmc_sync_midway)
         pha
-        lda #lo(initial_dmc_sync)
+        lda #lo(initial_dmc_sync_midway)
         pha
         php
 
