@@ -222,13 +222,18 @@ irq_initial_sync:
 ;--------NOP counter--------
 
     ; This method is called after the initial DMC starts to see how many clock cycles we need to
-    ; adjust it by. This must be aligned so we can use the bottom byte of PC as our cycle count
+    ; adjust it by. This must be aligned so we can use the bottom byte of PC as our cycle count.
+    ; We don't expect measurmeent to ever exceed nop $d8 (e.g. 54 * 8 bits / 2 cycles)
     align 256
 nop_chain:
-        rept 432/2
+        rept 255
             nop
         endm
-        jmp nop_chain
+        ; Fall through.
+    
+    ; Your game can also reuse nop_chain as a fixed sleep routine, such as via the SLEEP macro.
+sleep_routine:
+        rts
 
 
 ; --------dmc sync lookup--------
@@ -236,5 +241,7 @@ nop_chain:
     ; Lookup table for DMC initial sync.
     include "dmc_sync.asm"
 
-    ; This fits in the end of the DMC lookup table.
+    ; Dynamic sleep routine for 27-255 cycles, given a cycle count in A.
+    ; Your game can reuse this as a generic sleep routine as well.
+    ; (Conveniently, this code fits in the end of the page-aligned DMC lookup table.)
     include "vdelay_short.asm"

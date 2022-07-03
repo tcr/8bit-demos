@@ -415,15 +415,6 @@ table_palette:
     include "irq_routines_table.asm"
 
 
-; --------sub start--------
-
-        rept 128
-            nop
-        endm
-sleep_routine:
-        rts
-
-
 ; --------DMC sample block--------
 
     org DMC_SAMPLE_ADDR
