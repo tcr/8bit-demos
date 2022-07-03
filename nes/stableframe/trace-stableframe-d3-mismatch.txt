@@ -1,0 +1,18 @@
+81E6 $78         SEI                             A:F6 X:00 Y:00 P:81 SP:FC CYC:209 SL:229 CPU Cycle:232373707
+81E7 $A9 $10     LDA #$10                        A:F6 X:00 Y:00 P:85 SP:FC CYC:215 SL:229 CPU Cycle:232373709
+81E9 $8D $15 $40 STA $4015                       A:10 X:00 Y:00 P:05 SP:FC CYC:221 SL:229 CPU Cycle:232373711
+81EC $8D $15 $40 STA $4015                       A:10 X:00 Y:00 P:05 SP:FC CYC:233 SL:229 CPU Cycle:232373715
+81EF $8D $15 $40 STA $4015                       A:10 X:00 Y:00 P:05 SP:FC CYC:254 SL:229 CPU Cycle:232373722
+81F2 $58         CLI                             A:10 X:00 Y:00 P:05 SP:FC CYC:266 SL:229 CPU Cycle:232373726
+81F3 $4C $00 $87 JMP $8700                       A:10 X:00 Y:00 P:01 SP:FC CYC:272 SL:229 CPU Cycle:232373728
+[IRQ - Cycle: 232373881]
+81F6 $A2 $00     LDX #$00                        A:73 X:46 Y:0F P:81 SP:FF CYC:70  SL:240 CPU Cycle:232374911
+
+81E6 $78         SEI                             A:F6 X:00 Y:00 P:81 SP:FC CYC:209 SL:229 CPU Cycle:233088440
+81E7 $A9 $10     LDA #$10                        A:F6 X:00 Y:00 P:85 SP:FC CYC:215 SL:229 CPU Cycle:233088442
+81E9 $8D $15 $40 STA $4015                       A:10 X:00 Y:00 P:05 SP:FC CYC:221 SL:229 CPU Cycle:233088444
+81EC $8D $15 $40 STA $4015                       A:10 X:00 Y:00 P:05 SP:FC CYC:233 SL:229 CPU Cycle:233088448
+81EF $8D $15 $40 STA $4015                       A:10 X:00 Y:00 P:05 SP:FC CYC:254 SL:229 CPU Cycle:233088455
+81F2 $58         CLI                             A:10 X:00 Y:00 P:05 SP:FC CYC:275 SL:229 CPU Cycle:233088462
+81F3 $4C $00 $87 JMP $8700                       A:10 X:00 Y:00 P:01 SP:FC CYC:281 SL:229 CPU Cycle:233088464
+[IRQ - Cycle: 233088473]

@@ -82,17 +82,6 @@ sync_vbl_long:
 
     .ret:	; Now, if rendering is enabled, first frame will be long.
 
-        ; Delay 29782 - [some amount] clocks
-        ; NOTE: this is changed to stop well before vblank, so that DMC calibration can happen
-        ; and the first IRQ will fire at the start of scanline 240. This can be manually adjusted
-        ; as needed, as well as the delay length in dmc_sync.asm.
-        ldy #32
-        ldx #23
-    -:	
-        dey
-        bne -
-        nop
-        dex
-        bne -
+        ; NOTE: cut out delay 29782 - caller must manually position in frame
 
         rts

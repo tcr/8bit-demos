@@ -1,42 +1,21 @@
 import cycle_map
 from sys import stderr
 
-PRINT_SCANLINES = False
-
-l1 = 1
-l17 = 17
-l33 = 33
-
 r428 = 428
-# +48
 r380 = 380
-# +40
 r340 = 340
-# +20
 r320 = 320
-# +34
 r286 = 286
-# +30
 r254 = 254
-# +30
 r226 = 226
-# +12
 r214 = 214
-# +24
 r190 = 190
-# +30
 r160 = 160
-# +18
 r142 = 142
-# +14
 r128 = 128
-# +22
 r106 = 106
-# +22
 r84 = 84
-# +14
 r72 = 72
-# +18
 r54 = 54
 
 ALL_RATES = [
@@ -95,6 +74,13 @@ class State:
             file=stderr,
         )
 
+    def clone(self):
+        c = State()
+        c.cpu = self.cpu
+        c.rate = self.rate
+        c.frame_count = self.frame_count
+        return c
+
     # step functions
 
     def one_step(
@@ -116,9 +102,6 @@ class State:
         print(f'        WORD {routine}')
         if len(args) > 0:
             print(f'            byt {", ".join(args)}')
-
-        if PRINT_SCANLINES:
-            self.print_scanline()
 
     def two_step(
         self,
@@ -144,16 +127,6 @@ class State:
         print(f'        WORD {routine}')
         if len(args) > 0:
             print(f'            byt {", ".join(args)}')
-
-        if PRINT_SCANLINES:
-            self.print_scanline()
-
-    def clone(self):
-        c = State()
-        c.cpu = self.cpu
-        c.rate = self.rate
-        c.frame_count = self.frame_count
-        return c
 
     def advance_to(self, count, **kwargs):
         count -= self.cpu
@@ -235,10 +208,14 @@ def output_rows(state):
             # undershot
             freq = r84
 
-        if elapsed_cycles - expected_cycles < 6:
+        if elapsed_cycles - expected_cycles < 0:
+            cycle_modifier = 6
+        elif elapsed_cycles - expected_cycles < 3:
             cycle_modifier = 4
+        elif elapsed_cycles - expected_cycles < 6:
+            cycle_modifier = 2
         else:
-            cycle_modifier = 3
+            cycle_modifier = 0
 
         # print(row, freq, elapsed_cycles - expected_cycles, file=stderr)
         # print(row, freq, (state.cpu - start_cpu) / CPU_CYCLES_PER_SCANLINE, offset - (row + 1) * 4, file=stderr)

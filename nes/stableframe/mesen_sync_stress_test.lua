@@ -1,14 +1,13 @@
-﻿--This is an example script to give a general idea of how to build scripts
---Press F5 or click the Run button to execute it
---Scripts must be written in Lua (https://www.lua.org)
---This text editor contains an auto-complete feature for all Mesen-specific functions
---Typing "emu." will display a list containing every available API function to interact with Mesen
+﻿-- Keep hitting inputs and triggering reset until we get an incorrect sync,
+-- then break.
 
 nextFrame = False
 frameCount = nil
 ppuCycle = nil
 scanline = nil
 offset = nil
+
+randomInputEnabled = true
 
 function printInfo()
   --Get the emulation state
@@ -26,9 +25,20 @@ function printInfo()
     ppuCycle = state.ppu.cycle
     scanline = state.ppu.scanline
 
-    if ppuCycle < 338 and scanline == 240 then
+    --Draw some rectangles and print some text
+    emu.drawRectangle(8, 8, 128, 36, bgColor, true, 0)
+    emu.drawRectangle(8, 8, 128, 36, fgColor, false, 0)
+    emu.drawString(12, 12, "Offset: $" .. string.format("%x", offset), 0xFFFFFF, 0xFF000000, 0)
+    emu.drawString(12, 21, "PPU Cycle: " .. ppuCycle, 0xFFFFFF, 0xFF000000, 0)
+    emu.drawString(12, 30, "Scanline: " .. scanline, 0xFFFFFF, 0xFF000000, 0)
+
+    if ppuCycle ~= 338 and ppuCycle ~= 339 then
       print(ppuCycle)
       emu.breakExecution()
+      randomInputEnabled = false
+      emu.displayMessage('frameCount', frameCount)
+      emu.displayMessage('ppuCycle', ppuCycle)
+      emu.displayMessage('offset', offset)
       end
   end
     
@@ -51,6 +61,18 @@ function clearInfo()
   end
 
 emu.addMemoryCallback(clearInfo, emu.memCallbackType.cpuExec, 0x8000, 0x8004)
+
+function randomInput()
+  if not randomInputEnabled then return end
+  
+  if math.random() < 0.003 then
+    emu.reset()
+    end
+  
+  emu.setInput(0, {a = math.random() < 0.1, b = math.random() < 0.9, left = math.random() < 0.1, right = math.random() < 0.1})
+  end
+
+emu.addEventCallback(randomInput, emu.eventType.inputPolled)
 
 --Display a startup message
 emu.displayMessage("Script", "Example Lua script loaded.")
