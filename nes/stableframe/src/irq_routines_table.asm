@@ -25,7 +25,7 @@ irq_routines_table:
             byt DMCFREQ_IRQ_RATE72
         WORD irq_routine_row_dark - 4
             byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_light - 6
+        WORD irq_routine_row_light - 8
             byt DMCFREQ_IRQ_RATE84
         WORD irq_routine_row_dark - 2
             byt DMCFREQ_IRQ_RATE72
@@ -35,7 +35,7 @@ irq_routines_table:
             byt DMCFREQ_IRQ_RATE72
         WORD irq_routine_row_light - 4
             byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_dark - 6
+        WORD irq_routine_row_dark - 8
             byt DMCFREQ_IRQ_RATE84
         WORD irq_routine_row_light - 2
             byt DMCFREQ_IRQ_RATE72
@@ -61,7 +61,7 @@ irq_routines_table:
             byt DMCFREQ_IRQ_RATE72
         WORD irq_routine_row_dark - 4
             byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_light - 6
+        WORD irq_routine_row_light - 8
             byt DMCFREQ_IRQ_RATE84
         WORD irq_routine_row_dark - 2
             byt DMCFREQ_IRQ_RATE72
@@ -71,7 +71,7 @@ irq_routines_table:
             byt DMCFREQ_IRQ_RATE72
         WORD irq_routine_row_light - 4
             byt DMCFREQ_IRQ_RATE72
-        WORD irq_routine_row_dark - 6
+        WORD irq_routine_row_dark - 8
             byt DMCFREQ_IRQ_RATE84
         WORD irq_routine_row_light - 2
             byt DMCFREQ_IRQ_RATE72

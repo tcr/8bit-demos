@@ -1,4 +1,8 @@
-; (IRQ can be called up to 22 CPU cycles late according to Mesen.)
+; IRQ routines for timing and creating raster effects.
+; These are called using an indirect table lookup via a `jmp (irq_routines_table_addr)` stored
+; in zero page.
+;
+; (IRQ methods start ~22 CPU cycles after the DMC counter hits 0, according to Mesen.)
 
     ; Simplify how we look up additional bytes from the lookup table with a compiler variable.
     ; We should advance by at least two bytes (the length of an IRQ routine address) each routine,
@@ -202,7 +206,7 @@ irq_routine_two_step_align:
 
         ; Expect to be called with DMC P0 = 54.
         ; We change the DMC rate to P1 immediately, and at least P0 cycles to change to P2.
-        JUMP_SLIDE 8
+        JUMP_SLIDE 10
 irq_routine_row_light:
         ; [+ 6] 
         IRQ_ENTER
@@ -232,7 +236,7 @@ irq_routine_row_light:
 
         ; Expect to be called with DMC P0 = 54.
         ; We change the DMC rate to P1 immediately, and at least P0 cycles to change to P2.
-        JUMP_SLIDE 8
+        JUMP_SLIDE 10
 irq_routine_row_dark:
         ; [+ 6] Preserve registers.
         IRQ_ENTER

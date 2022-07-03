@@ -1,3 +1,5 @@
+; Joypad routines
+
     ; Also see https://www.nesdev.org/wiki/Controller_reading_code
 read_joypad:
         ; Start controller read.

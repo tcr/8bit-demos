@@ -1,3 +1,5 @@
+; PRG ROM for stableframe demo
+
     include "bitfuncs.inc"
 
     include "nes.s"
@@ -100,7 +102,7 @@ DEFAULT_PPUMASK = PPUMASK_BACKGROUNDENABLE | PPUMASK_SPRITEENABLE | PPUMASK_BACK
 DEFAULT_PPUCTRL = PPUCTRL_NAMETABLE2000 | PPUCTRL_SPRITEPATTERN | PPUCTRL_SPRITE16PXMODE | PPUCTRL_BACKGROUNDPATTERN
 
 
-; PRG start
+; ----------prg start-----------
 
     org $8000
 
@@ -322,7 +324,7 @@ main_loop:
         jmp .loop_end
 
 
-; -------vblank routine----------
+; -------"vblank" routine----------
 
     ; This "VBLANK" routine is not called from NMI, but from the IRQ routine that is
     ; synced to start at VBLANK (start of scanline 241)
@@ -380,6 +382,7 @@ vblank_from_irq:
         ; Return from IRQ, directly into the reset logic.
         rti
 
+
 ; --------ppu palette--------
 
     ; PPU Palette table
@@ -401,14 +404,14 @@ table_palette:
     include "joypad.asm"
 
 
-; --------IRQ syncing code--------
+; --------DMC syncing code--------
 
     include "sync_vbl_long.asm"
 
-    include "irq_initial_sync.asm"
+    include "dmc_sync.asm"
 
 
-; ------ game-specific IRQ routines -------
+; --------IRQ routines------------
 
     include "irq_routines.asm"
 

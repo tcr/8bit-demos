@@ -1,3 +1,4 @@
+; NES Constants
 
 PPUCTRL equ $2000
 PPUCTRL_NAMETABLE2000 equ %0

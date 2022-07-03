@@ -208,7 +208,9 @@ def output_rows(state):
             # undershot
             freq = r84
 
-        if elapsed_cycles - expected_cycles < 0:
+        if elapsed_cycles - expected_cycles < -3:
+            cycle_modifier = 8
+        elif elapsed_cycles - expected_cycles < 0:
             cycle_modifier = 6
         elif elapsed_cycles - expected_cycles < 3:
             cycle_modifier = 4
@@ -217,7 +219,7 @@ def output_rows(state):
         else:
             cycle_modifier = 0
 
-        # print(row, freq, elapsed_cycles - expected_cycles, file=stderr)
+        print(row, freq, elapsed_cycles - expected_cycles, file=stderr)
         # print(row, freq, (state.cpu - start_cpu) / CPU_CYCLES_PER_SCANLINE, offset - (row + 1) * 4, file=stderr)
 
 
