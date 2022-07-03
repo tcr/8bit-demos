@@ -81,11 +81,14 @@ And that's it. To customize this for your game, start with modifying `gen_irq_ro
 design your interrupt sequence, and build your custom routines in `irq_routines.asm` for custom
 raster logic.
 
+<img height="400" alt="mesen event viewer" src="https://user-images.githubusercontent.com/80639/177044549-03d4b7d4-7624-49de-aac4-c2a69578c959.png">
+<sub>Mesen Event Viewer showing IRQ, DMC, and PPU events in a synchronized frame.</sub>
+
 
 ## Console Screenshot
 
 Photo of a front-loader (USA/NTSC) with an Everdrive. This TV is pretty small (5" diagonal?) but
-hopefully it showcases the demo well enough.
+shows a stable picture.
  
 <img width="480" alt="physical"
 src="https://user-images.githubusercontent.com/80639/176989947-abca9438-01b5-4fef-abe5-ee5aa3552aa6.png">
