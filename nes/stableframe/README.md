@@ -83,7 +83,7 @@ And that's it. To customize this for your game, start with modifying `gen_irq_ro
 design one or multiple interrupt sequences, and build your custom routines in `irq_routines.asm` for
 custom raster logic.
 
-<img height="400" alt="mesen event viewer" src="https://user-images.githubusercontent.com/80639/177044549-03d4b7d4-7624-49de-aac4-c2a69578c959.png">
+<img alt="mesen event viewer" src="https://user-images.githubusercontent.com/80639/177044549-03d4b7d4-7624-49de-aac4-c2a69578c959.png">
 <sub>Mesen Event Viewer showing IRQ, DMC, and PPU events in a synchronized frame.</sub>
 
 
