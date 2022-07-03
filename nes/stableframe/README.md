@@ -81,10 +81,6 @@ And that's it. To customize this for your game, start with modifying `gen_irq_ro
 design your interrupt sequence, and build your custom routines in `irq_routines.asm` for custom
 raster logic.
 
-**NOTE:** The initial DMC synchronization may not be perfect. Rarely, bugs seem to appear during
-repeated re-syncs in Mesen and FCEUX. Issues like these are fixable but hard to debug. But, when 
-correctly synchronized, the frame seems to be stable for upwards of several days running on my NES.
-
 
 ## Console Screenshot
 
@@ -95,20 +91,20 @@ hopefully it showcases the demo well enough.
 src="https://user-images.githubusercontent.com/80639/176989947-abca9438-01b5-4fef-abe5-ee5aa3552aa6.png">
 
 
-## Mesen Script
+## Mesen Sync Stress Test Script
 
-To test how the synchronization works, you can see exactly which `dmu_sync` "offset" is used when
-you press A by loading the `mesen_ppu_sync.lua` script.
+To stress test synchronization and learn more how it works, you have Mesen retry a bunch of
+different `dmu_sync` "offset" values by randomly hitting the A, B, and reset buttons by loading
+the `mesen_sync_stress_test.lua` script.
 
 <img width="480" alt="image"
 src="https://user-images.githubusercontent.com/80639/176988384-8740181c-5242-4418-917e-632219235670.png">
 
-The dialog will appear whenever you press A, and disappear when you press B to reset. The
-offset should be any value from 0 to 54*8 (divided by two, because the DMC clock is only ever a
-multiple of two, and the `nop` counter also can only measure every two CPU cycles.). The program
-should ultimately fire its first IRQ on scanline 240 with a PPU cycle of 338 or 339.
-This should execute the first CPU instruction (the `jmp` command at `zp_irq_jmp`) at the start of
-scanline 241.
+The dialog will whenever DMC occurs. The offset should be any value from 0 to 54*8 (divided by two,
+because the DMC clock is only ever a multiple of two, and the `nop` counter also can only measure
+every two CPU cycles.) The script checks that the program ultimately fires its first post-sync IRQ
+on scanline 240 with a PPU cycle of 338 or 339. This is followed by the demo executing the first CPU
+instruction (the `jmp` trampoline stored in `zp_irq_jmp`) at the start of scanline 241.
 
 
 ## References
