@@ -41,7 +41,7 @@ CPU_CYCLES_PER_FRAME = 29780.5
 CPU_CYCLES_PER_SCANLINE = 341/3
 
 
-class State:
+class Frame:
     rate = 0
     cpu = 0
     frame_count = 1
@@ -75,7 +75,7 @@ class State:
         )
 
     def clone(self):
-        c = State()
+        c = Frame()
         c.cpu = self.cpu
         c.rate = self.rate
         c.frame_count = self.frame_count
@@ -171,8 +171,8 @@ class State:
 ###########################
 
 # Generate the middle rows using a chain of two step routines, with 72 and 84 being P1 values
-def output_rows(state):
-    start_cpu = state.cpu
+def output_rows(frame):
+    start_cpu = frame.cpu
 
     # Odd frames are light, even frames are dark
     odd = True
@@ -196,10 +196,10 @@ def output_rows(state):
         routine += f' - {cycle_modifier}'
 
         # advance in two steps
-        state.two_step(freq, r54, routine=routine, output_arg_two=False)
+        frame.two_step(freq, r54, routine=routine, output_arg_two=False)
 
         # see which frequency to use next by seeing if we are over or under
-        elapsed_cycles = (state.cpu - start_cpu)
+        elapsed_cycles = (frame.cpu - start_cpu)
         expected_cycles = (row + 1) * 4 * CPU_CYCLES_PER_SCANLINE
         if elapsed_cycles > expected_cycles:
             # overshot
@@ -220,50 +220,50 @@ def output_rows(state):
             cycle_modifier = 0
 
         print(row, freq, elapsed_cycles - expected_cycles, file=stderr)
-        # print(row, freq, (state.cpu - start_cpu) / CPU_CYCLES_PER_SCANLINE, offset - (row + 1) * 4, file=stderr)
+        # print(row, freq, (frame.cpu - start_cpu) / CPU_CYCLES_PER_SCANLINE, offset - (row + 1) * 4, file=stderr)
 
 
-# Build the state generator.
-state = State()
+# Build the frame generator.
+frame = Frame()
 
 cycles_vblank = 1364  # ~12 scanlines
 cycle_rows = 8696  # cycle to start rendering the middle rows
 
 # 1. Start with a VBLANK routine, then advance up to offset_to_rows.
-state.start(r54)
-state.one_step(r428, routine="irq_routine_vblank_start")
-state.advance_to(cycle_rows)
+frame.start(r54)
+frame.one_step(r428, routine="irq_routine_vblank_start")
+frame.advance_to(cycle_rows)
 print()
 
 # 2. Output the series of middle rows.
-output_rows(state)
+output_rows(frame)
 print()
 
 # 3. One routine to branch to end-of-frame alignment.
-state.one_step(r54, routine="irq_routine_align_start")
+frame.one_step(r54, routine="irq_routine_align_start")
 print()
 
 # 4. Output four alignment sequences. The first one overshoots by 1.5 clock cycles, and each
 # of the three successive frames undershoots by 0.5.
-alignment_offset = state.remaining_in_frame() - 0.5
+alignment_offset = frame.remaining_in_frame() - 0.5
 
 print("irq_routines_table_align_0:")
-state2 = state.clone()
-state2.advance_by(
+frame2 = frame.clone()
+frame2.advance_by(
     alignment_offset + 2,
     last_routine_one_step="irq_routine_one_step_align",
     last_routine_two_step="irq_routine_two_step_align",
     last_routine_additional_args=["lo(irq_routines_table_align_3)"],
 )
-state2.frame()
+frame2.frame()
 
-for frame in range(1, 4):
-    print(f"irq_routines_table_align_{frame}:")
-    state2 = state.clone()
-    state2.advance_by(
+for frame_index in range(1, 4):
+    print(f"irq_routines_table_align_{frame_index}:")
+    frame2 = frame.clone()
+    frame2.advance_by(
         alignment_offset,
         last_routine_one_step="irq_routine_one_step_align",
         last_routine_two_step="irq_routine_two_step_align",
-        last_routine_additional_args=[f"lo(irq_routines_table_align_{frame - 1})"],
+        last_routine_additional_args=[f"lo(irq_routines_table_align_{frame_index - 1})"],
     )
-    state2.frame()
+    frame2.frame()
