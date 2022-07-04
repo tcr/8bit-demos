@@ -11,14 +11,14 @@ src="https://user-images.githubusercontent.com/80639/177176211-acc6d712-3894-44e
 **This demo shows mid-frame IRQs to create 32 colored rows, each four scanlines apart, without using a
 mapper. Each row modifies the color emphasis bits as well as scroll.** Instructions:
 
-1. Press A to start mid-frame interrupts.
-2. Press left and right buttons to shift the sync (for debugging).
-3. Press B to reset the game.
+1. Press A to synchronize and start mid-frame interrupts.
+2. Press left and right buttons to shift the timer (for debugging).
+3. Press B to desync.
 
-This code should be able to be adapted for your game. It was motivated for use in the
+This code should be able to be adapted for your game. The demo was motivated by the
 [NESDev Compo 2022](https://itch.io/jam/nesdev-2022), as the "Games" category doesn't allow any
-mappers that provide scanline-based IRQ support. The header does not specify a mapper (NROM). This
-demo has been tested in FCEUX, Mesen, and a front-loader NES (USA/NTSC).
+mappers that provide scanline-based IRQ support. This demo's header does not specify a mapper
+(NROM) and has been tested in FCEUX, Mesen, and a front-loader NES (USA/NTSC).
 
 You may need to install the [AS Macroassembler](http://john.ccac.rwth-aachen.de:8000/as/) to build
 via `make`.
@@ -28,60 +28,72 @@ via `make`.
 
 The NES doesn't provide a native timer capability to issue interrupts at different points in the
 frame (to perform raster effects / update graphics mid-frame).
-Usually you have to resort to using a mapper to get the capability to do per-scanline IRQs.
+Usually you have to resort to using a mapper to get the capability to perform changes on particular
+scanlines, or use wasteful/inflexible techniques like polling for sprite 0 hit.
 
 But if your game doesn't use the
 [APU's DMC channel](https://www.nesdev.org/wiki/APU_DMC#Usage_of_DMC_for_syncing_to_video) to play
-audio samples, you can manually synchronize
-the DMC's timer to the frame, and use the DMC IRQ (when a sample is finished) as your mid-frame
-timer.
+audio samples, you can play a silent sample, manually synchronize
+the DMC's timer to the frame, and use the DMC IRQ (when a sample is finished) to interrupt your code
+at precise points during rendering.
 
 A strategy suggested by [NESDev forum user supercat](https://forums.nesdev.org/viewtopic.php?t=18854) 
-is to change the DMC frequency mid-interrupt to allow for more precise timing. Essentially, you
-can influence when the DMC fires by using different combinations of DMCFREQ values during its 8-bit
-sequence. If you can combine rates in a certain way, and modify DMCFREQ for any period of its 8
-periods per sample (P0-P7), you can synchronize it with a particular CPU cycle. Thus, you can mostly
-use DMC to trigger an interrupt exactly when you want.
+is to change the DMC frequency more than once during an interrupt to allow for more precise timing.
+Essentially, the DMC timer is always running, and you can influence when the DMC fires by using
+different combinations of DMCFREQ values during its 8-bit sequence. If you combine rates in a
+certain way, you can synchronize it with a particular CPU cycle and trigger an interrupt
+exactly when you want during a frame.
 
-The poster also suggests to keep triggering the DMC sample fetch each interrupt—meaning the IRQ
-sequence never terminates—so that initial synchronization is only required once (presumably
-occurring right before loading a game level). This is the approach used by this demo, since by only
-synchronizing once, we can minimize the CPU cycles required to perform mid-frame interrupts.
+The poster also suggests that you kick off another DMC sample each interrupt. This means the IRQ
+sequence never terminates—initial synchronization is only required once, and the IRQ sequence itself
+(and subsequent rate changes) are enough to keep the frame in-sync. This is the approach used by
+this demo, since by only synchronizing at the start of the "level" we can minimize the CPU cycles
+stolen from the main thread to maintain mid-frame raster effects.
 
 
 ## How it works
 
-The demo works as follows:
+The demo works in two parts.
+
+**Pre-sync:**
 
 1. When you load the game, DMC is disabled. NMI is also disabled (and unused).
-2. When you press the A button, we enter `dmc_sync.asm`. Tthe game first tries to synchronize to a
-   consistent PPU frame (with code copied from
+2. When you press the A button, we enter `dmc_sync.asm`. The game first tries to synchronize to a
+   consistent PPU frame (with a routine copied from
    blargg's [full palette demo](https://www.nesdev.org/wiki/Full_palette_demo)). This may take a few
-   blank frames to sync.
+   blank frames to sync. The timer ends on a known PPU frame and shortly before VBLANK, leaving
+   time for the next step.
 3. Next we synchronize the DMC timer. Because the timer could at this point be anywhere in its
-   initial 54*8 cycle sample period, we measure this delay using a long series of `nop`s and the
+   initial 54*8 cycle sample period, we measure this delay using a page-aligned series of `nop`s and
+   the program counter. Once the DMC IRQ fires, we grab the measured delay from the low byte of the
    program counter.
-4. Once the IRQ fires, we compensate for this measured delay, by changing the DMC frequency four
-   times in a single interrupt to synchronize the timer to a consistent CPU cycle. This is done via
-   a lookup table in `dmc_sync_table.asm` (generated by a Python script).
-5. At this point, the next IRQ that fires will happen at the start of scanline 241, during VBLANK.
-   This is the first entry in `irq_routines_table.asm` (generated by a Python
-   script), and can serve the same purpose as NMI to perform writes to the PPU during VBLANK.
-6. Each interrupt from now on executes one of the routines in `irq_routines.asm`. Some
-   routines just set the next DMC cycle, but others can create visual effects such as changing the
-   background color or modifying scroll.
-7. At the end of the IRQ routines table we use four branches; because NTSC frames are 29780.5 cycles
-   long, four frames with different offsets (+1.5 cycles, -0.5, -0.5, and -0.5) are needed to keep
-   the number of cycles over time consistent. This introduces some jitter, which is hidden in
-   HBLANK. (Note that the firing of an IRQ can be delayed by what's
-   happening on the main loop; we stuff some 7-cycle opcodes in there to test worst case jitter.)
-8. From now on, the frame should be stable. Code can execute on the main loop as well as via IRQ
-   routines, including an IRQ routine timed to fire at the start of scaline 241 (VBLANK).
-   You can press B at any time to desync and go back to step #1, to try different sync delays.
+4. Finally we compensate for the measured delay by changing the DMC frequency four times in a single
+   interrupt, to synchronize the DMC timer to a consistent CPU cycle. This sequence uses a lookup
+   table stored in `dmc_sync_table.asm` (generated by `gen_dmc_sync_table.py`).
 
-And that's it. To customize this for your game, start with modifying `gen_irq_routines_table.py` to
-design one or multiple interrupt sequences, and build your custom routines in `irq_routines.asm` for
-custom raster logic.
+**Post-sync:**
+
+1. From this point on, the next IRQ that fires will happen at the start of scanline 241, during
+   VBLANK. This is the first entry in `irq_routines_table.asm` (generated by
+   `gen_irq_routines_table.py`), and can serve the same purpose as NMI to perform writes to the PPU
+   during VBLANK.
+2. Each successive interrupt executes one of the entries in `irq_routines.asm`. Some of these
+   routines just set the next DMC frequency, but others can create visual effects such as changing
+   the background color or modifying scroll.
+3. At the end of the IRQ routines table, we have four branches; because NTSC frames are 29780.5
+   cycles long, four frames with different offsets (+1.5 cycles, -0.5, -0.5, and -0.5) are needed to
+   keep the number of cycles over time consistent. This introduces some jitter, which is hidden in
+   HBLANK. Note that the firing of an IRQ can be delayed by what's
+   happening on the main loop; we stuff some 7-cycle opcodes in there to test worst case jitter.
+4. We then loop back the first entry in the table. From now on, the frame should be stable. Code can
+   execute on the main loop as well as via IRQ routines until you choose to desync. At any time, you
+   can press B to desync and go back to the beginning, to try syncing with different DMC delays.
+   This demonstrates transitioning between different IRQ sequences in your game, for example exiting
+   a level to go to a menu.
+
+And that's it. To customize this demo for your game, start by modifying `gen_irq_routines_table.py`
+to design one or multiple interrupt sequences, and build your custom routines in `irq_routines.asm`
+for custom raster logic.
 
 <img alt="mesen event viewer" src="https://user-images.githubusercontent.com/80639/177176442-e0fe0b49-ff84-44b9-9336-5c38d2f5e5f8.png">
 <sub>Mesen Event Viewer showing IRQ, DMC, and PPU events in a synchronized frame.</sub>
@@ -89,8 +101,8 @@ custom raster logic.
 
 ## Console Screenshot
 
-Photo of a front-loader (USA/NTSC) with an Everdrive. This TV is pretty small (5" diagonal?) but
-shows a stable picture.
+Photo of a front-loader (USA/NTSC) running `stableframe` on an Everdrive. My TV is pretty small
+(5" diagonal?) but shows a stable picture.
  
 <img width="480" alt="physical"
 src="https://user-images.githubusercontent.com/80639/176989947-abca9438-01b5-4fef-abe5-ee5aa3552aa6.png">
@@ -98,18 +110,22 @@ src="https://user-images.githubusercontent.com/80639/176989947-abca9438-01b5-4fe
 
 ## Mesen Sync Stress Test Script
 
-To stress test synchronization and learn more how it works, you have Mesen retry a bunch of
-different `dmu_sync` "offset" values by randomly hitting the A, B, and reset buttons by loading
-the `mesen_sync_stress_test.lua` script.
+To stress test synchronization and learn more how it works, you can have Mesen retry a bunch of
+different measured DMC delays in the `dmu_sync_table`. Loading `mesen_sync_stress_test.lua` scrip
+will randomly hitting the A, B, and reset buttons, triggering the DMC sync at different time over
+the course of its sequence.
+
+The dialog will appear whenever DMC sync occurs. The offset will be a value from $00 to $d8
+(aka 54*8 divided by two, because the DMC clock is only ever a multiple of two, and the `nop`
+counter can only measure every two CPU cycles.)
+
+The script checks that the program fires its first post-sync IRQ on scanline 240 at a PPU cycle of
+338 or 339. If the demo ever syncs inconsistently, abreakpoint is fired. The exact instruction being
+observed is the `jmp` trampoline stored in `zp_irq_jmp`, which jumps to the first IRQ routine at
+the start of scanline 241.
 
 <img width="480" alt="image"
 src="https://user-images.githubusercontent.com/80639/177175674-fddbdec4-e4c0-44ff-a001-f7b3149d077c.png">
-
-The dialog will whenever DMC occurs. The offset should be any value from 0 to 54*8 (divided by two,
-because the DMC clock is only ever a multiple of two, and the `nop` counter also can only measure
-every two CPU cycles.) The script checks that the program ultimately fires its first post-sync IRQ
-on scanline 240 with a PPU cycle of 338 or 339. This is followed by the demo executing the first CPU
-instruction (the `jmp` trampoline stored in `zp_irq_jmp`) at the start of scanline 241.
 
 
 ## References
