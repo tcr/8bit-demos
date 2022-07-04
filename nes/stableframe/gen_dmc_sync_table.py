@@ -11,7 +11,7 @@ max_steps = 4
 if len(sys.argv) < 2:
     print("error: expected target cycles for dmc sync table. example:", file=sys.stderr)
     print(file=sys.stderr)
-    print("    python gen_dmc_sync.py 922 > src/dmc_sync.asm", file=sys.stderr)
+    print("    python gen_dmc_sync.py 922 > src/dmc_sync_table.asm", file=sys.stderr)
     print(file=sys.stderr)
     print("possible values:", file=sys.stderr)
 
