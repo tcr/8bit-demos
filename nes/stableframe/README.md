@@ -6,11 +6,10 @@ IRQs](https://forums.nesdev.org/viewtopic.php?t=18854) by changing DMC frequency
 **Download the demo [stableframe.nes 🕹](https://github.com/tcr/8bit-demos/blob/main/nes/stableframe/stableframe.nes?raw=true)**
 
 <img width="480" alt="pre-sync"
-src="https://user-images.githubusercontent.com/80639/176984613-bda3f15e-59ad-4c93-b988-0e26f7c8d458.png"> <img width="480" alt="post-sync" src="https://user-images.githubusercontent.com/80639/176984600-5b8c6e82-03a9-4b36-a878-b5b778cd297e.png">
+src="https://user-images.githubusercontent.com/80639/177176211-acc6d712-3894-44ef-8d40-87678eb5bb08.png"> <img width="480" alt="post-sync" src="https://user-images.githubusercontent.com/80639/177176290-5f335d98-1406-4479-b9db-430d25e3be53.png">
 
-This demo shows mid-frame IRQs to create 32 colored rows, each four scanlines apart, without using a
-mapper. Each row modifies the color emphasis bits as well as scroll. This demo has been tested in
-FCEUX, Mesen, and a front-loader NES (USA/NTSC). Instructions:
+**This demo shows mid-frame IRQs to create 32 colored rows, each four scanlines apart, without using a
+mapper. Each row modifies the color emphasis bits as well as scroll.** Instructions:
 
 1. Press A to start mid-frame interrupts.
 2. Press left and right buttons to shift the sync (for debugging).
@@ -18,7 +17,8 @@ FCEUX, Mesen, and a front-loader NES (USA/NTSC). Instructions:
 
 This code should be able to be adapted for your game. It was motivated for use in the
 [NESDev Compo 2022](https://itch.io/jam/nesdev-2022), as the "Games" category doesn't allow any
-mappers that provide scanline-based IRQ support. The header does not specify a mapper (NROM).
+mappers that provide scanline-based IRQ support. The header does not specify a mapper (NROM). This
+demo has been tested in FCEUX, Mesen, and a front-loader NES (USA/NTSC).
 
 You may need to install the [AS Macroassembler](http://john.ccac.rwth-aachen.de:8000/as/) to build
 via `make`.
@@ -83,7 +83,7 @@ And that's it. To customize this for your game, start with modifying `gen_irq_ro
 design one or multiple interrupt sequences, and build your custom routines in `irq_routines.asm` for
 custom raster logic.
 
-<img alt="mesen event viewer" src="https://user-images.githubusercontent.com/80639/177044549-03d4b7d4-7624-49de-aac4-c2a69578c959.png">
+<img alt="mesen event viewer" src="https://user-images.githubusercontent.com/80639/177176442-e0fe0b49-ff84-44b9-9336-5c38d2f5e5f8.png">
 <sub>Mesen Event Viewer showing IRQ, DMC, and PPU events in a synchronized frame.</sub>
 
 
@@ -103,7 +103,7 @@ different `dmu_sync` "offset" values by randomly hitting the A, B, and reset but
 the `mesen_sync_stress_test.lua` script.
 
 <img width="480" alt="image"
-src="https://user-images.githubusercontent.com/80639/177175201-2ba4603c-3c98-40f5-8bff-5a4fb4a0ea38.png">
+src="https://user-images.githubusercontent.com/80639/177175674-fddbdec4-e4c0-44ff-a001-f7b3149d077c.png">
 
 The dialog will whenever DMC occurs. The offset should be any value from 0 to 54*8 (divided by two,
 because the DMC clock is only ever a multiple of two, and the `nop` counter also can only measure
