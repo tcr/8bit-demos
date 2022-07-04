@@ -114,9 +114,9 @@ src="https://user-images.githubusercontent.com/80639/177201731-882439db-2a25-4b6
 ## Mesen Sync Stress Test Script
 
 To stress test synchronization and learn more how it works, you can have Mesen retry a bunch of
-different measured DMC delays in the `dmu_sync_table`. Loading `mesen_sync_stress_test.lua` scrip
-will randomly hitting the A, B, and reset buttons, triggering the DMC sync at different time over
-the course of its sequence.
+different measured DMC delays in the `dmu_sync_table`. Loading `mesen_sync_stress_test.lua` script
+will randomly hit the A, B, and reset buttons, triggering the DMC sync at different sync offsets
+over time.
 
 The dialog will appear whenever DMC sync occurs. The script checks that the program fires its first
 post-sync IRQ on scanline 240 at a PPU cycle of 338 or 339. If the demo ever syncs inconsistently, a
