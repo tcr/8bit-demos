@@ -27,7 +27,8 @@ initial_dmc_sync:
         clc
         adc #1
         pha
-        ; Push $01 as our processor state for `rti`.
+        ; Clear the our processor state for `rti`.
+        lda #$00
         pha
 
         ; Store IRQ trampoline "jmp irq_initial_sync" into ZP.

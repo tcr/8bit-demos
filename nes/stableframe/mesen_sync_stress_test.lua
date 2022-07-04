@@ -8,6 +8,7 @@ scanline = nil
 offset = nil
 
 randomInputEnabled = true
+randomInputCount = 0
 
 function printInfo()
   --Get the emulation state
@@ -24,13 +25,15 @@ function printInfo()
     frameCount = state.ppu.frameCount
     ppuCycle = state.ppu.cycle
     scanline = state.ppu.scanline
+      randomInputCount = randomInputCount + 1
 
     --Draw some rectangles and print some text
     emu.drawRectangle(8, 8, 128, 36, bgColor, true, 0)
     emu.drawRectangle(8, 8, 128, 36, fgColor, false, 0)
-    emu.drawString(12, 12, "Offset: $" .. string.format("%x", offset), 0xFFFFFF, 0xFF000000, 0)
+    emu.drawString(12, 12, "Offset: $" .. string.format("%02x", offset), 0xFFFFFF, 0xFF000000, 0)
     emu.drawString(12, 21, "PPU Cycle: " .. ppuCycle, 0xFFFFFF, 0xFF000000, 0)
     emu.drawString(12, 30, "Scanline: " .. scanline, 0xFFFFFF, 0xFF000000, 0)
+    emu.drawString(100, 30, "#" .. randomInputCount, 0xFFFFFF, 0xFF000000, 0)
 
     if ppuCycle ~= 338 and ppuCycle ~= 339 then
       print(ppuCycle)
@@ -39,7 +42,7 @@ function printInfo()
       emu.displayMessage('frameCount', frameCount)
       emu.displayMessage('ppuCycle', ppuCycle)
       emu.displayMessage('offset', offset)
-      end
+    end
   end
     
   if frameCount ~= nil then
@@ -49,6 +52,8 @@ function printInfo()
     emu.drawString(12, 12, "Offset: $" .. string.format("%x", offset), 0xFFFFFF, 0xFF000000, 1)
     emu.drawString(12, 21, "PPU Cycle: " .. ppuCycle, 0xFFFFFF, 0xFF000000, 1)
     emu.drawString(12, 30, "Scanline: " .. scanline, 0xFFFFFF, 0xFF000000, 1)
+    emu.drawString(100, 30, "#" .. randomInputCount, 0xFFFFFF, 0xFF000000, 0)
+
   end
 end
 

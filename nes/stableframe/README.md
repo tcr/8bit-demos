@@ -103,7 +103,7 @@ different `dmu_sync` "offset" values by randomly hitting the A, B, and reset but
 the `mesen_sync_stress_test.lua` script.
 
 <img width="480" alt="image"
-src="https://user-images.githubusercontent.com/80639/176988384-8740181c-5242-4418-917e-632219235670.png">
+src="https://user-images.githubusercontent.com/80639/177175201-2ba4603c-3c98-40f5-8bff-5a4fb4a0ea38.png">
 
 The dialog will whenever DMC occurs. The offset should be any value from 0 to 54*8 (divided by two,
 because the DMC clock is only ever a multiple of two, and the `nop` counter also can only measure

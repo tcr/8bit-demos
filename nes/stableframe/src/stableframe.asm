@@ -86,7 +86,6 @@ zp_irq_hi byt ?
 zp_temp_a byt ?
 zp_temp_y byt ?
 zp_temp_x byt ?
-zp_frame_index byt ?
 
 zp_joypad_p0 byt ?
 zp_joypad_p1 byt ?
@@ -120,7 +119,9 @@ reset:
         ldx #$ff
         txs
 
-        ; Wait for PPU
+        ; The vblank flag is in an unknown state after reset,
+        ; so we perforrm two waits for vertical blank to make sure that the
+        ; PPU has stabilized.
         ldx #3
     -:
         bit PPUSTATUS
@@ -128,6 +129,7 @@ reset:
         dex
         bne -
 
+; pre_sync:
     .clear_internal_ram:
         ; Clear out console RAM
         lda #0
@@ -145,13 +147,6 @@ reset:
         bne -
 
     .setup_ppu:
-        ; Clear OAM DMA.
-        sta OAMDMA
-
-        ; Set PPU control registers.
-        lda #DEFAULT_PPUCTRL
-        sta PPUCTRL
-
         ; Load palette table into palette VRAM.
         lda #hi(VRAM_PALETTETABLE)
         sta PPUADDR
@@ -184,37 +179,7 @@ reset:
         dex
         bne -
 
-        ; Update the left of the nametable with triangles.
-        ; Do so using the 32-tile increment mode.
-        lda #DEFAULT_PPUCTRL | PPUCTRL_INCREMENTMODE
-        sta PPUCTRL
-        lda #hi(VRAM_NAMETABLE0 + $e2)
-        sta PPUADDR
-        lda #lo(VRAM_NAMETABLE0 + $e2)
-        sta PPUADDR
-        lda #$08
-        ldx #16
-    -:
-        sta PPUDATA
-        dex
-        bne -
-        lda #hi(VRAM_NAMETABLE0 + $e9)
-        sta PPUADDR
-        lda #lo(VRAM_NAMETABLE0 + $e9)
-        sta PPUADDR
-        lda #$08
-        ldx #16
-    -:
-        sta PPUDATA
-        dex
-        bne -
-        lda #DEFAULT_PPUCTRL
-        sta PPUCTRL
-
-        ; Set some specific tiles in nametable $2000.
-        PRINT_STRING 4, 5, "PRESS A TO SYNC"
-
-        ; Set some specific tiles in nametable $2000.
+        ; Set upper icon.
         lda #hi(VRAM_NAMETABLE0 + (32 * 4))
         sta PPUADDR
         lda #lo(VRAM_NAMETABLE0 + (32 * 4))
@@ -248,7 +213,7 @@ reset:
         lda #11+32
         sta PPUDATA
 
-        ; Set some specific tiles in nametable $2000.
+        ; Set lower icon.
         lda #hi(VRAM_NAMETABLE0 + (32 * 55))
         sta PPUADDR
         lda #lo(VRAM_NAMETABLE0 + (32 * 55))
@@ -282,19 +247,52 @@ reset:
         lda #7+32
         sta PPUDATA
 
-        ; The vblank flag is in an unknown state after reset,
-        ; so we perforrm two waits for vertical blank to make sure that the
-        ; PPU has stabilized.
-        bit PPUSTATUS
+
+        ; Update the left of the nametable with triangles.
+        ; Do so using the 32-tile increment mode.
+        lda #DEFAULT_PPUCTRL | PPUCTRL_INCREMENTMODE
+        sta PPUCTRL
+        lda #hi(VRAM_NAMETABLE0 + $e1)
+        sta PPUADDR
+        lda #lo(VRAM_NAMETABLE0 + $e1)
+        sta PPUADDR
+        lda #$08
+        ldx #16
+    -:
+        sta PPUDATA
+        dex
+        bne -
+        lda #hi(VRAM_NAMETABLE0 + $e8)
+        sta PPUADDR
+        lda #lo(VRAM_NAMETABLE0 + $e8)
+        sta PPUADDR
+        lda #$08
+        ldx #16
+    -:
+        sta PPUDATA
+        dex
+        bne -
+        lda #DEFAULT_PPUCTRL
+        sta PPUCTRL
+
+pre_sync:
+        ; Sync with VBLANK before writing to PPU.
     -:
         bit PPUSTATUS
         bpl -
 
-        ; Setup scroll registers.
-        lda #$00
+        ; Set some on-screen instructions.
+        PRINT_STRING 4, 5, "PRESS A TO SYNC  "
+
+        ; Clear PPUADDR and PPUSCROLL.
+        lda #0
+        sta PPUADDR
         sta PPUSCROLL
-        lda #$00
         sta PPUSCROLL
+
+        ; Reset PPUCTRL.
+        lda #DEFAULT_PPUCTRL
+        sta PPUCTRL
         ; Setup PPUMASK.
         lda #DEFAULT_PPUMASK
         sta PPUMASK
@@ -329,10 +327,11 @@ main_loop:
     ; This "VBLANK" routine is not called from NMI, but from the IRQ routine that is
     ; synced to start at VBLANK (start of scanline 241)
 vblank_from_irq:
-        ; Update instructions
+        ; Clear PPU latch.
         lda PPUSTATUS
-        PRINT_STRING 4, 5, "PRESS B TO RESET"
-        ; Reset PPUADDR
+        ; Update on-screen instructions.
+        PRINT_STRING 4, 5, "PRESS B TO DESYNC"
+        ; Reset PPUADDR after updating PPU.
         lda #0
         sta PPUADDR
         sta PPUADDR
@@ -363,19 +362,27 @@ vblank_from_irq:
     
         ; Pressing button B resets the demo.
     .button_b_reset:
-        ; Because this was called from a routine inside an interrupt, we have five stack values
-        ; we need to clear.
-        pla
-        pla
-        pla
-        pla
-        pla
+        ; This method was called from a routine inside an interrupt, and we don't know what main
+        ; loop code we were executing before this. So reset the stack now and push our return
+        ; values onto it.
+        ldx #$ff
+        txs
+
+        ; Clear out stack.
+        lda #0
+        ldx #$00
+    -:
+        sta $0100,x
+        inx
+        bne -
+
         ; Add the reset vector to the stack as our return value.
-        lda #hi(reset)
+        lda #hi(pre_sync)
         pha
-        lda #lo(reset)
+        lda #lo(pre_sync)
         pha
-        php
+        lda #$04 ; processor state to enable interruptss
+        pha
         ; We also acknowledge and disable DMC IRQ so it won't keep firing.
         lda #0
         sta APUSTATUS
