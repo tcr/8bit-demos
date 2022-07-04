@@ -1,3 +1,5 @@
+; DMC sync code. This embeds the CPU/PPU syncing logic (sync_vbl_long.asm) and contains the logic
+; and lookup tables for syncing DMC timer to a known CPU cycle.
 
 ; Each decode of the dmc_sync table requires some setup (splitting upper and lower nybbles) so
 ; we burn some CPU cycles. Subtract that from the actual delay number.
@@ -139,9 +141,9 @@ irq_initial_sync:
         and #%1111
         pha
 
-        ; Alignment.
-        nop
-        nop
+        ; Optional: save the sync delay to display on-screen
+        ; You can replace this with two `nop` if unneeded.
+        stx ram_dmc_sync_display
         
         pla
         tay

@@ -79,18 +79,26 @@ I set I + 1
 
     org $0
 
+; IRQ trampoline. Usually an indirect jump instruction.
 zp_irq_jmp byt ?
 zp_irq_lo byt ?
 zp_irq_hi byt ?
 
+; Temp values used in irq_routines.asm
 zp_temp_a byt ?
 zp_temp_y byt ?
-zp_temp_x byt ?
 
+; The low byte of the irq alignment sequence in the table
+zp_irq_align_sequence byt ?
+
+; Joypad read values
 zp_joypad_p0 byt ?
 zp_joypad_p1 byt ?
 
-zp_irq_align_sequence byt ?
+    org $200
+
+; Stores the DMC offset we measured during sync; only used for display, not computation
+ram_dmc_sync_display byt ?
 
 
 ; Game constants
@@ -129,7 +137,6 @@ reset:
         dex
         bne -
 
-; pre_sync:
     .clear_internal_ram:
         ; Clear out console RAM
         lda #0
@@ -145,8 +152,16 @@ reset:
         sta $0700,x
         inx
         bne -
+    
+    .setup_oam:
+        ; Clear OAM.
+        lda #$02
+        sta OAMDMA
 
     .setup_ppu:
+        ; Clear latch.
+        lda PPUSTATUS
+
         ; Load palette table into palette VRAM.
         lda #hi(VRAM_PALETTETABLE)
         sta PPUADDR
@@ -283,6 +298,7 @@ pre_sync:
 
         ; Set some on-screen instructions.
         PRINT_STRING 4, 5, "PRESS A TO SYNC  "
+        PRINT_STRING 4, 24, "            "
 
         ; Clear PPUADDR and PPUSCROLL.
         lda #0
@@ -331,6 +347,21 @@ vblank_from_irq:
         lda PPUSTATUS
         ; Update on-screen instructions.
         PRINT_STRING 4, 5, "PRESS B TO DESYNC"
+        PRINT_STRING 4, 24, "DMA SYNC $"
+        lda ram_dmc_sync_display
+        ror
+        ror
+        ror
+        ror
+        clc
+        and #%1111
+        adc #'0'
+        sta PPUDATA
+        lda ram_dmc_sync_display
+        and #%1111
+        adc #'0'
+        sta PPUDATA
+
         ; Reset PPUADDR after updating PPU.
         lda #0
         sta PPUADDR

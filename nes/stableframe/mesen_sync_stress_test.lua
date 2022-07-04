@@ -77,7 +77,8 @@ function randomInput()
   emu.setInput(0, {a = math.random() < 0.1, b = math.random() < 0.9, left = math.random() < 0.1, right = math.random() < 0.1})
   end
 
+-- Comment this out if you just need the overlay.
 emu.addEventCallback(randomInput, emu.eventType.inputPolled)
 
 --Display a startup message
-emu.displayMessage("Script", "Example Lua script loaded.")
+emu.displayMessage("Script", "DMC Sync script loaded.")

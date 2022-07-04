@@ -1,4 +1,4 @@
-; IRQ routines for timing and creating raster effects.
+; IRQ routines for altering DMC timing and creating raster effects.
 ; These are called using an indirect table lookup via a `jmp (irq_routines_table_addr)` stored
 ; in zero page.
 ;

@@ -6,7 +6,7 @@ IRQs](https://forums.nesdev.org/viewtopic.php?t=18854) by changing DMC frequency
 **Download the demo [stableframe.nes 🕹](https://github.com/tcr/8bit-demos/blob/main/nes/stableframe/stableframe.nes?raw=true)**
 
 <img width="480" alt="pre-sync"
-src="https://user-images.githubusercontent.com/80639/177176211-acc6d712-3894-44ef-8d40-87678eb5bb08.png"> <img width="480" alt="post-sync" src="https://user-images.githubusercontent.com/80639/177176290-5f335d98-1406-4479-b9db-430d25e3be53.png">
+src="https://user-images.githubusercontent.com/80639/177176211-acc6d712-3894-44ef-8d40-87678eb5bb08.png"> <img width="480" alt="post-sync" src="https://user-images.githubusercontent.com/80639/177201374-5a47cfd9-4ea4-4f42-a77c-c4d12e6dc842.png">
 
 **This demo shows mid-frame IRQs to create 32 colored rows, each four scanlines apart, without using a
 mapper. Each row modifies the color emphasis bits as well as scroll.** Instructions:
@@ -95,17 +95,17 @@ And that's it. To customize this demo for your game, start by modifying `gen_irq
 to design one or multiple interrupt sequences, and build your custom routines in `irq_routines.asm`
 for custom raster logic.
 
-<img alt="mesen event viewer" src="https://user-images.githubusercontent.com/80639/177176442-e0fe0b49-ff84-44b9-9336-5c38d2f5e5f8.png">
+<img alt="mesen event viewer" src="https://user-images.githubusercontent.com/80639/177201445-aecc7a49-10c3-46b5-be63-acc28cd441d5.png">
 <sub>Mesen Event Viewer showing IRQ, DMC, and PPU events in a synchronized frame.</sub>
 
 
 ## Console Screenshot
 
-Photo of a front-loader (USA/NTSC) running `stableframe` on an Everdrive. My TV is pretty small
-(5" diagonal?) but shows a stable picture.
+Photo of a front-loader NES (USA/NTSC) running `stableframe` via an Everdrive cart. My TV is pretty
+small (5" diagonal?) but shows a stable picture.
  
 <img width="480" alt="physical"
-src="https://user-images.githubusercontent.com/80639/176989947-abca9438-01b5-4fef-abe5-ee5aa3552aa6.png">
+src="https://user-images.githubusercontent.com/80639/177201731-882439db-2a25-4b63-a947-253fc4153d14.png">
 
 
 ## Mesen Sync Stress Test Script
